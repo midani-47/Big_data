@@ -1,98 +1,98 @@
-GSM,Observation,individual,disease state,cell type,time
-GSM1540487,01-20_V1,patient 01-20,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540488,01-23_V1,patient 01-23,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540489,01-24_V1,patient 01-24,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540490,01-25_V1,patient 01-25,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540491,01-26_V1,patient 01-26,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540492,01-27_V1,patient 01-27,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540493,01-28_V1,patient 01-28,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540494,01-29_V1,patient 01-29,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540495,01-30_V1,patient 01-30,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540496,01-31_V1,patient 01-31,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540497,01-32_V1,patient 01-32,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540498,01-33_V1,patient 01-33,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540499,01-34_V1,patient 01-34,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540500,01-36_V1,patient 01-36,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540501,01-37_V1,patient 01-37,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540502,01-39_V1,patient 01-39,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540503,01-40_V1,patient 01-40,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540504,01-42_V1,patient 01-42,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540505,01-44_V1,patient 01-44,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540506,01-45_V1,patient 01-45,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540507,01-46_V1,patient 01-46,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540508,01-47_V1,patient 01-47,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540509,01-48_V1,patient 01-48,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540510,01-49_V1,patient 01-49,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540511,01-50_V1,patient 01-50,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540512,01-52_V1,patient 01-52,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540513,01-53_V1,patient 01-53,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540514,01-54_V1,patient 01-54,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
-GSM1540515,01-20_V2,patient 01-20,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540516,01-23_V2,patient 01-23,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540517,01-24_V2,patient 01-24,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540518,01-25_V2,patient 01-25,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540519,01-26_V2,patient 01-26,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540520,01-27_V2,patient 01-27,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540521,01-28_V2,patient 01-28,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540522,01-29_V2,patient 01-29,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540523,01-30_V2,patient 01-30,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540524,01-31_V2,patient 01-31,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540525,01-32_V2,patient 01-32,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540526,01-33_V2,patient 01-33,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540527,01-34_V2,patient 01-34,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540528,01-37_V2,patient 01-37,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540529,01-39_V2,patient 01-39,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540530,01-40_V2,patient 01-40,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540531,01-44_V2,patient 01-44,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540532,01-45_V2,patient 01-45,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540533,01-46_V2,patient 01-46,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540534,01-47_V2,patient 01-47,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540535,01-48_V2,patient 01-48,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540536,01-49_V2,patient 01-49,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540537,01-50_V2,patient 01-50,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540538,01-51_V2,patient 01-51,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540539,01-52_V2,patient 01-52,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540540,01-53_V2,patient 01-53,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540541,01-54_V2,patient 01-54,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
-GSM1540542,01-20_V5,patient 01-20,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540543,01-23_V5,patient 01-23,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540544,01-24_V5,patient 01-24,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540545,01-25_V5,patient 01-25,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540546,01-26_V5,patient 01-26,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540547,01-27_V5,patient 01-27,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540548,01-28_V5,patient 01-28,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540549,01-29_V5,patient 01-29,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540550,01-30_V5,patient 01-30,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540551,01-31_V5,patient 01-31,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540552,01-32_V5,patient 01-32,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540553,01-33_V5,patient 01-33,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540554,01-34_V5,patient 01-34,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540555,01-36_V5,patient 01-36,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540556,01-37_V5,patient 01-37,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540557,01-39_V5,patient 01-39,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540558,01-40_V5,patient 01-40,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540559,01-42_V5,patient 01-42,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540560,01-44_V5,patient 01-44,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540561,01-45_V5,patient 01-45,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540562,01-46_V5,patient 01-46,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540563,01-47_V5,patient 01-47,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540564,01-48_V5,patient 01-48,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540565,01-49_V5,patient 01-49,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540566,01-50_V5,patient 01-50,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540567,01-51_V5,patient 01-51,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540568,01-52_V5,patient 01-52,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540569,01-53_V5,patient 01-53,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540570,01-54_V5,patient 01-54,Lyme disease,PBMC,6 months following treatment completion (V5)
-GSM1540591,02-18_V,control 02-18,Healthy controls,PBMC,control
-GSM1540592,02-19_V,control 02-19,Healthy controls,PBMC,control
-GSM1540593,02-21_V,control 02-21,Healthy controls,PBMC,control
-GSM1540594,02-22_V,control 02-22,Healthy controls,PBMC,control
-GSM1540595,02-41_V,control 02-41,Healthy controls,PBMC,control
-GSM1540596,02-55_V,control 02-55,Healthy controls,PBMC,control
-GSM1540597,02-56_V,control 02-56,Healthy controls,PBMC,control
-GSM1540598,02-57_V,control 02-57,Healthy controls,PBMC,control
-GSM1540599,02-58_V,control 02-58,Healthy controls,PBMC,control
-GSM1540600,02-59_V,control 02-59,Healthy controls,PBMC,control
-GSM1540601,02-60_V,control 02-60,Healthy controls,PBMC,control
-GSM1540602,02-61_V,control 02-61,Healthy controls,PBMC,control
-GSM1540603,02-83_V,control 02-83,Healthy controls,PBMC,control
+Run,GSM,Observation,individual,disease state,cell type,time
+SRR1644070,GSM1540487,01-20_V1,patient 01-20,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644071,GSM1540488,01-23_V1,patient 01-23,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644072,GSM1540489,01-24_V1,patient 01-24,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644073,GSM1540490,01-25_V1,patient 01-25,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644074,GSM1540491,01-26_V1,patient 01-26,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644075,GSM1540492,01-27_V1,patient 01-27,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644076,GSM1540493,01-28_V1,patient 01-28,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644077,GSM1540494,01-29_V1,patient 01-29,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644078,GSM1540495,01-30_V1,patient 01-30,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644079,GSM1540496,01-31_V1,patient 01-31,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644080,GSM1540497,01-32_V1,patient 01-32,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644081,GSM1540498,01-33_V1,patient 01-33,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644082,GSM1540499,01-34_V1,patient 01-34,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644083,GSM1540500,01-36_V1,patient 01-36,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644084,GSM1540501,01-37_V1,patient 01-37,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644085,GSM1540502,01-39_V1,patient 01-39,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644086,GSM1540503,01-40_V1,patient 01-40,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644087,GSM1540504,01-42_V1,patient 01-42,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644088,GSM1540505,01-44_V1,patient 01-44,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644089,GSM1540506,01-45_V1,patient 01-45,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644090,GSM1540507,01-46_V1,patient 01-46,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644091,GSM1540508,01-47_V1,patient 01-47,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644092,GSM1540509,01-48_V1,patient 01-48,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644093,GSM1540510,01-49_V1,patient 01-49,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644094,GSM1540511,01-50_V1,patient 01-50,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644095,GSM1540512,01-52_V1,patient 01-52,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644096,GSM1540513,01-53_V1,patient 01-53,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644097,GSM1540514,01-54_V1,patient 01-54,Lyme disease,PBMC,acute Lyme pre-treatment (V1)
+SRR1644098,GSM1540515,01-20_V2,patient 01-20,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644099,GSM1540516,01-23_V2,patient 01-23,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644100,GSM1540517,01-24_V2,patient 01-24,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644101,GSM1540518,01-25_V2,patient 01-25,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644102,GSM1540519,01-26_V2,patient 01-26,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644103,GSM1540520,01-27_V2,patient 01-27,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644104,GSM1540521,01-28_V2,patient 01-28,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644105,GSM1540522,01-29_V2,patient 01-29,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644106,GSM1540523,01-30_V2,patient 01-30,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644107,GSM1540524,01-31_V2,patient 01-31,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644108,GSM1540525,01-32_V2,patient 01-32,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644109,GSM1540526,01-33_V2,patient 01-33,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644110,GSM1540527,01-34_V2,patient 01-34,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644111,GSM1540528,01-37_V2,patient 01-37,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644112,GSM1540529,01-39_V2,patient 01-39,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644113,GSM1540530,01-40_V2,patient 01-40,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644114,GSM1540531,01-44_V2,patient 01-44,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644115,GSM1540532,01-45_V2,patient 01-45,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644116,GSM1540533,01-46_V2,patient 01-46,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644117,GSM1540534,01-47_V2,patient 01-47,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644118,GSM1540535,01-48_V2,patient 01-48,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644119,GSM1540536,01-49_V2,patient 01-49,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644120,GSM1540537,01-50_V2,patient 01-50,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644121,GSM1540538,01-51_V2,patient 01-51,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644122,GSM1540539,01-52_V2,patient 01-52,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644123,GSM1540540,01-53_V2,patient 01-53,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644124,GSM1540541,01-54_V2,patient 01-54,Lyme disease,PBMC,"3 weeks later, immediately following completion of a standard course of antibiotics (V2)"
+SRR1644125,GSM1540542,01-20_V5,patient 01-20,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644126,GSM1540543,01-23_V5,patient 01-23,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644127,GSM1540544,01-24_V5,patient 01-24,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644128,GSM1540545,01-25_V5,patient 01-25,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644129,GSM1540546,01-26_V5,patient 01-26,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644130,GSM1540547,01-27_V5,patient 01-27,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644131,GSM1540548,01-28_V5,patient 01-28,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644132,GSM1540549,01-29_V5,patient 01-29,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644133,GSM1540550,01-30_V5,patient 01-30,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644134,GSM1540551,01-31_V5,patient 01-31,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644135,GSM1540552,01-32_V5,patient 01-32,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644136,GSM1540553,01-33_V5,patient 01-33,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644137,GSM1540554,01-34_V5,patient 01-34,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644138,GSM1540555,01-36_V5,patient 01-36,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644139,GSM1540556,01-37_V5,patient 01-37,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644140,GSM1540557,01-39_V5,patient 01-39,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644141,GSM1540558,01-40_V5,patient 01-40,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644142,GSM1540559,01-42_V5,patient 01-42,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644143,GSM1540560,01-44_V5,patient 01-44,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644144,GSM1540561,01-45_V5,patient 01-45,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644145,GSM1540562,01-46_V5,patient 01-46,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644146,GSM1540563,01-47_V5,patient 01-47,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644147,GSM1540564,01-48_V5,patient 01-48,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644148,GSM1540565,01-49_V5,patient 01-49,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644149,GSM1540566,01-50_V5,patient 01-50,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644150,GSM1540567,01-51_V5,patient 01-51,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644151,GSM1540568,01-52_V5,patient 01-52,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644152,GSM1540569,01-53_V5,patient 01-53,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644153,GSM1540570,01-54_V5,patient 01-54,Lyme disease,PBMC,6 months following treatment completion (V5)
+SRR1644174,GSM1540591,02-18_V,control 02-18,Healthy controls,PBMC,control
+SRR1644175,GSM1540592,02-19_V,control 02-19,Healthy controls,PBMC,control
+SRR1644176,GSM1540593,02-21_V,control 02-21,Healthy controls,PBMC,control
+SRR1644177,GSM1540594,02-22_V,control 02-22,Healthy controls,PBMC,control
+SRR1644178,GSM1540595,02-41_V,control 02-41,Healthy controls,PBMC,control
+SRR1644179,GSM1540596,02-55_V,control 02-55,Healthy controls,PBMC,control
+SRR1644180,GSM1540597,02-56_V,control 02-56,Healthy controls,PBMC,control
+SRR1644181,GSM1540598,02-57_V,control 02-57,Healthy controls,PBMC,control
+SRR1644182,GSM1540599,02-58_V,control 02-58,Healthy controls,PBMC,control
+SRR1644183,GSM1540600,02-59_V,control 02-59,Healthy controls,PBMC,control
+SRR1644184,GSM1540601,02-60_V,control 02-60,Healthy controls,PBMC,control
+SRR1644185,GSM1540602,02-61_V,control 02-61,Healthy controls,PBMC,control
+SRR1644186,GSM1540603,02-83_V,control 02-83,Healthy controls,PBMC,control
