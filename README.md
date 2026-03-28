@@ -1,4 +1,5 @@
 # Big_data
+Last updated: 28/03/2026 at 15:30
 
 ## Study Summary: Longitudinal Transcriptome Analysis in Acute Lyme Disease
 This project analyzes a longitudinal transcriptome study of 29 Lyme disease patients and 13 matched controls, collected at multiple time points (acute phase, 1 month, and 6 months post-treatment). The study investigates the molecular basis of acute Lyme disease and the development of post-treatment symptoms. 
@@ -32,8 +33,8 @@ Differential gene expression analysis, pathway enrichment analysis, and comparis
 
 ## Areas for improvement:
 
-1. **Batch effects (_source: Abed_):**
-The authors said that there's no batch effect by PCA of the 13 controls alone and by finding zero DEGs between winter/spring controls. But isn't comparing only 8 vs 5 controls extremely  underpowered? For me, I remember seasons were a big factor in my response to the infection. The seasonal confound was not properly addressed in the study. Controls were sampled mostly in winter (61.5%) and patients were sampled mostly in summer (82.8%). Improvement could be that we include season as a covariate in the DESeq2 model to account for batch effects.
+1. **Batch effects/Biological confounding variables (_source: Abed_):**
+Not sure if this is a batch effect, or a _biological confounding variable_, but the authors said that there's no batch effect by PCA of the 13 controls alone and by finding zero DEGs between winter/spring controls. But isn't comparing only 8 vs 5 controls extremely  underpowered? For me, I remember seasons were a big factor in my response to the infection. The seasonal confound was not properly addressed in the study. Controls were sampled mostly in winter (61.5%) and patients were sampled mostly in summer (82.8%). Improvement could be that we include season as a covariate in the DESeq2 model to account for batch effects.
 
 2. **Open-source pathway analysis (clusterProfiler + MSigDB) instead of IPA (_Source: Thomas_)**:
 IPA is expensive. Thomas's pipeline uses clusterProfiler with MSigDB (Molecular Signatures Database) which is reproducible and free. we can do Gene Ontology (GO) enrichment, KEGG pathway analysis, and GSEA (Gene Set Enrichment Analysis) which tests ALL genes (not just the significant ones), without random thresholds like in the study.
