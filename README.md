@@ -61,21 +61,52 @@ Improvement: Use DESeq2's ability to model paired samples by including patient a
 The original used FC > 1.5 and FDR < 0.1%. These are arbitrary.
 Improvement: Use DESeq2's lfcShrink() for shrunken log2 fold change estimates (more reliable for genes with low counts), and explore results at multiple thresholds.
 
-9. **Outdated alignment pipeline (_source: LLM_)**
+9. **Outdated alignment pipeline (_source: LLM, confirmed by Thomas_)**
 TopHat/Cufflinks is now deprecated. Modern pipelines use STAR or HISAT2 for alignment and featureCounts or Salmon for quantification.
-For re-analysis, if the new matrix counts come from a modern pipeline, this is already addressed. (*so we gotta ask Thomas about this*)
+Thomas re-aligned the raw FASTQ data to **GRCh38.p13** (vs original hg19) using a modern pipeline and produced raw integer counts. This addresses both the outdated aligner and the FPKM issue. *(Ask Thomas which aligner/quantifier he used for the citation.)*
+
+10. **Updated genome reference: GRCh38.p13 vs hg19 (_source: Thomas_)**
+The original study used hg19 (GRCh37, released 2009). Thomas's re-alignment uses GRCh38.p13, the current human reference, with corrected sequences, better gene models, and hundreds of gap fixes.
 
 
+## Our Data
 
-### Checked Steps ✅:
+| File | Description | Dimensions |
+|------|-------------|------------|
+| `Data/GSE63085_raw_counts_GRCh38.p13_NCBI.tsv.gz` | Raw integer counts (GRCh38.p13, NCBI Entrez Gene IDs) | 39,376 genes x 75 samples |
+| `Data/Human.GRCh38.p13.annot.tsv.gz` | Gene annotation (Symbol, Description, GeneType, Ensembl, GO terms) | 39,376 genes x 17 columns |
+| `sample_annotations.csv` | Sample metadata (Run, GSM, patient, disease state, time point) | 97 samples (75 in counts) |
+
+22 samples from the annotation are not in the counts matrix (excluded during Thomas's quality filtering in the modern alignment pipeline).
+
+
+## Our Improved Pipeline
+
+```
+Raw counts (GRCh38.p13, from Thomas)
+  |-> DESeq2 (negative binomial model, size factor normalization)
+      |-> Pre-filtering (remove low-count genes)
+      |-> Differential expression (V1/V2/V5 vs Control)
+      |-> lfcShrink (shrunken log2 fold changes)
+  |-> Biology context (following Mohrkeg Ch. 8):
+      |-> 1st gen: ORA via clusterProfiler + MSigDB
+      |-> 2nd gen: GSEA via clusterProfiler (NEW vs original study)
+      |-> 2nd gen: GSVA via GSVA package (NEW vs original study)
+```
+
+**Reference**: Mohrkeg T. *Beginner's Handbook of -Omics Data Analysis*,
+Chapter 8: Downstream Analysis of Expression Data.
+
+
+### Checked Steps:
 - [x] Sample data annotation
-- [x] Go through the paper and understand the methods used for data analysis.
-- [x] get the data from Thomas.
-
-
-
-### To do:
-- [ ] EDA
-- [ ] Upstream and downstream analysis
-- [ ] 
-- [ ] 
+- [x] Go through the paper and understand the methods used for data analysis
+- [x] Get the data from Thomas (raw counts GRCh38.p13 + gene annotation)
+- [x] Understand Thomas's Chapter 8 (three generations of pathway analysis)
+- [x] Full EDA on the data (lyme_dge_analysis.Rmd)
+- [x] DESeq2 differential expression (V1, V2, V5 vs Control)
+- [ ] Downstream: ORA with clusterProfiler + MSigDB (1st generation)
+- [ ] Downstream: GSEA with clusterProfiler (2nd generation)
+- [ ] Downstream: GSVA transformation + analysis (2nd generation)
+- [ ] Compare our DESeq2 results with the original Limma/Voom findings
+- [ ] Final presentation / report
