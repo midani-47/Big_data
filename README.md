@@ -34,38 +34,48 @@ Differential gene expression analysis, pathway enrichment analysis, and comparis
 ## Areas for improvement:
 
 1. **Batch effects/Biological confounding variables (_source: Abed_):**
+
 Not sure if this is a batch effect, or a _biological confounding variable_, but the authors said that there's no batch effect by PCA of the 13 controls alone and by finding zero DEGs between winter/spring controls. But isn't comparing only 8 vs 5 controls extremely  underpowered? For me, I remember seasons were a big factor in my response to the infection. The seasonal confound was not properly addressed in the study. Controls were sampled mostly in winter (61.5%) and patients were sampled mostly in summer (82.8%). Improvement could be that we include season as a covariate in the DESeq2 model to account for batch effects.
 
 2. **Open-source pathway analysis (clusterProfiler + MSigDB) instead of IPA (_Source: Thomas_)**:
+
 IPA is expensive. Thomas's pipeline uses clusterProfiler with MSigDB (Molecular Signatures Database) which is reproducible and free. we can do Gene Ontology (GO) enrichment, KEGG pathway analysis, and GSEA (Gene Set Enrichment Analysis) which tests ALL genes (not just the significant ones), without random thresholds like in the study.
 
 3. **Small subgroup sizes for PTLDS comparison (_source: Abed_)**:
+
 only 4 ptlds patients vs 15 resolved. does finding 0 DEGs "make sense" considering the low power (62% as they reported)? Should we just acknowledge this limitation clearly in the presentation?
 
 4. **No gene set enrichment analysis (GSEA) (_source: Thomas)_**
+
 the study only did over (/under)-representation analysis (ORA) via IPA, which only looks at genes above the significance cutoff. We should definitely use GSEA using clusterProfiler, beacuse it uses all genes detects more changes in pathways that ORA misses.
 
 5. **Starting from raw counts, not FPKM (_source: LLMs_)**
+
 The original used FPKM from Cufflinks, which normalizes by gene length and library size. But FPKM has known issues: it's not comparable across samples because it assumes the same total mRNA per cell. DESeq2's median-of-ratios normalization (size factors) is statistically superior for differential expression.
 
 6. **Statistical Method: DESeq2 instead of Limma/Voom (_source: Thomas_)**
+
 study used Limma/Voom which which was according to llms originally designed for microarrays.
 DESeq2 directly models count data, with built-in shrinkage estimation of dispersion and log2 fold changes. Better suited for RNA-Seq, especially with small sample sizes (like n=4 for PTLDS). DESeq2 also has Cook's distance for automatic outlier detection per gene.
 
 
 7. **Paired/longitudinal design not fully exploited (_source: LLM_)**
+
 The same 29 patients were measured at 3 time points, creating a repeated measures design. The original study compared each time point vs. controls independently.
 Improvement: Use DESeq2's ability to model paired samples by including patient as a blocking factor. This accounts for individual variation and increases statistical power.
 
 8. **Arbitrary fold-change and FDR cutoffs _(sourece: LLM)_**
+
 The original used FC > 1.5 and FDR < 0.1%. These are arbitrary.
 Improvement: Use DESeq2's lfcShrink() for shrunken log2 fold change estimates (more reliable for genes with low counts), and explore results at multiple thresholds.
 
 9. **Outdated alignment pipeline (_source: LLM, confirmed by Thomas_)**
+
 TopHat/Cufflinks is now deprecated. Modern pipelines use STAR or HISAT2 for alignment and featureCounts or Salmon for quantification.
 Thomas re-aligned the raw FASTQ data to **GRCh38.p13** (vs original hg19) using a modern pipeline and produced raw integer counts. This addresses both the outdated aligner and the FPKM issue. *(Ask Thomas which aligner/quantifier he used for the citation.)*
 
 10. **Updated genome reference: GRCh38.p13 vs hg19 (_source: Thomas_)**
+
 The original study used hg19 (GRCh37, released 2009). Thomas's re-alignment uses GRCh38.p13, the current human reference, with corrected sequences, better gene models, and hundreds of gap fixes.
 
 
@@ -107,8 +117,8 @@ Chapter 8: Downstream Analysis of Expression Data.
 - [x] DESeq2 differential expression (V1, V2, V5 vs Control)
 - [x] Downstream: ORA with clusterProfiler + MSigDB Hallmark + GO (1st generation)
 - [x] Downstream: GSEA with clusterProfiler + MSigDB Hallmark (2nd generation)
-- [ ] Downstream: GSVA transformation + analysis (2nd generation)
-- [ ] Compare our DESeq2 results with the original Limma/Voom findings
+- [x] Downstream: Biologic theme comparison across time points (Ch. 8.4.2)
+- [ ] Downstream: GSVA transformation + analysis (2nd generation, optional extension)
 - [ ] Final presentation / report
 
 ### Key Results (from pipeline run):
