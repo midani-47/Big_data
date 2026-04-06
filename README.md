@@ -105,8 +105,16 @@ Chapter 8: Downstream Analysis of Expression Data.
 - [x] Understand Thomas's Chapter 8 (three generations of pathway analysis)
 - [x] Full EDA on the data (lyme_dge_analysis.Rmd)
 - [x] DESeq2 differential expression (V1, V2, V5 vs Control)
-- [ ] Downstream: ORA with clusterProfiler + MSigDB (1st generation)
-- [ ] Downstream: GSEA with clusterProfiler (2nd generation)
+- [x] Downstream: ORA with clusterProfiler + MSigDB Hallmark + GO (1st generation)
+- [x] Downstream: GSEA with clusterProfiler + MSigDB Hallmark (2nd generation)
 - [ ] Downstream: GSVA transformation + analysis (2nd generation)
 - [ ] Compare our DESeq2 results with the original Limma/Voom findings
 - [ ] Final presentation / report
+
+### Key Results (from pipeline run):
+- **V1 (acute):** 7,340 DEGs (padj<0.05); ~1,020 with |lfc|>1
+- **V2 (post-treatment):** 4,408 DEGs
+- **V5 (6 months):** 1,314 DEGs
+- **ORA Hallmark (V1):** 9 enriched pathways (inflammatory response, TNFa/NFkB, IFN-gamma, G2M, complement...)
+- **ORA GO (V1):** 524 enriched terms
+- **GSEA Hallmark (V1):** 36 of 50 pathways significant (top: IFN-gamma, TNFa, inflammatory response)

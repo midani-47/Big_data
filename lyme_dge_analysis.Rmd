@@ -1,0 +1,1018 @@
+---
+title: "Lyme Disease Differential Gene Expression Analysis"
+subtitle: "Re-analysis of Bouquet et al. 2016 (GSE63085) using DESeq2 & clusterProfiler"
+author: "Big Data Course Project"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    code_folding: show
+    theme: flatly
+    highlight: tango
+    fig_width: 10
+    fig_height: 7
+bibliography: references.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, warning = FALSE, message = FALSE,
+  fig.align = "center", cache = TRUE)
+```
+
+# 1. Environment Setup
+
+## 1.1 Install Required Packages (run once)
+
+```{r install-packages, eval=FALSE, include=FALSE}
+if (rstudioapi::isAvailable()) {setwd(dirname(rstudioapi::getActiveDocumentContext()$path))}
+options(width = 200)
+
+
+# use this function to install and load packages
+using <- function(pkgs) {
+  for (pkg in pkgs) {  # Loop through each package in the provided vector
+    if (!requireNamespace(pkg, quietly = TRUE)) {    # If not installed, install it
+      install.packages(pkg, repos = "https://cloud.r-project.org")}
+    # Load the package:
+    library(pkg, character.only = TRUE)}}
+
+```
+
+## 1.2 Load Libraries
+
+```{r load-libraries}
+using(c("tidyverse", "pheatmap", "RColorBrewer", "ggrepel", "corrplot", "gridExtra", "viridis", "BiocManager","DESeq2", "org.Hs.eg.db", "clusterProfiler", "EnhancedVolcano","msigdbr", "PCAtools", "GSVA", "enrichplot"))
+
+
+theme_set(theme_bw(base_size = 13))
+```
+
+# 2. Data Loading
+
+```{r directories}
+project_dir <- getwd()
+data_dir    <- file.path(project_dir, "Data")
+results_dir <- file.path(project_dir, "results")
+plots_dir   <- file.path(project_dir, "plots")
+
+for (d in c(results_dir, plots_dir))
+  if (!dir.exists(d)) dir.create(d, recursive = TRUE)
+```
+
+---
+
+# 2. Load Data
+
+The raw FASTQ data from GEO accession GSE63085 was re-aligned by Thomas
+Mohrkeg to the modern **GRCh38.p13** human reference genome (replacing
+the outdated hg19 used in the original 2016 study), and quantified into
+raw integer counts -- the proper input format for DESeq2.
+
+**References:**
+- Original study: Bouquet J et al. *mBio* 2016; 7(1):e00100-16.
+- Downstream analysis methodology: Mohrkeg T. *Beginner's Handbook of
+  -Omics Data Analysis*, Chapter 8.
+
+## 2.1 Raw Counts Matrix
+
+```{r load-counts}
+counts_raw <- read.delim(
+  gzfile(file.path(data_dir, "GSE63085_raw_counts_GRCh38.p13_NCBI.tsv.gz")),
+  row.names = 1, check.names = FALSE
+)
+
+cat("Counts matrix:", nrow(counts_raw), "genes x", ncol(counts_raw), "samples\n")
+cat("All integers:", all(counts_raw == round(counts_raw)), "\n")
+```
+
+## 2.2 Gene Annotation (featureData)
+
+This maps NCBI Entrez Gene IDs to gene symbols, descriptions, biotypes,
+chromosomal locations, and GO terms.
+
+```{r load-gene-annot}
+gene_annot <- read.delim(
+  gzfile(file.path(data_dir, "Human.GRCh38.p13.annot.tsv.gz")),
+  stringsAsFactors = FALSE
+)
+
+cat("Gene annotation:", nrow(gene_annot), "genes x", ncol(gene_annot), "columns\n")
+cat("Columns:", paste(names(gene_annot), collapse = ", "), "\n")
+```
+
+## 2.3 Sample Annotation
+
+```{r load-sample-annot}
+sample_annot <- read.csv(
+  file.path(project_dir, "sample_annotations.csv"),
+  stringsAsFactors = FALSE
+)
+cat("Sample annotation:", nrow(sample_annot), "rows\n")
+```
+
+## 2.4 Align Samples
+
+Thomas's pipeline excluded some samples during quality filtering. We keep
+only those present in both the counts matrix and the annotation.
+
+```{r align-data}
+shared     <- intersect(colnames(counts_raw), sample_annot$GSM)
+only_annot <- setdiff(sample_annot$GSM, colnames(counts_raw))
+
+cat("Counts samples: ", ncol(counts_raw), "\n")
+cat("Annotation rows:", nrow(sample_annot), "\n")
+cat("Shared:         ", length(shared), "\n")
+cat("Excluded by Thomas:", length(only_annot), "\n")
+
+
+if (length(only_annot) > 0) {
+  cat("\nExcluded sample details:\n")
+    sample_annot %>%
+    dplyr::filter(GSM %in% only_annot) %>%
+    dplyr::select(GSM, Observation, time) %>%
+    print()
+}
+```
+
+```{r subset-and-order}
+counts <- counts_raw[, shared]
+annot  <- sample_annot %>%
+  dplyr::filter(GSM %in% shared) %>%
+  dplyr::arrange(match(GSM, shared))
+
+stopifnot(all(colnames(counts) == annot$GSM))
+```
+
+## 2.5 Engineer Metadata Columns
+
+We create clean factor variables for the experimental design.
+
+```{r engineer-metadata}
+annot <- annot %>%
+  dplyr::mutate(
+    patient_id = gsub("^.*-([0-9]+)_V.*$", "\\1",
+                      gsub("^.*-([0-9]+)_V$", "\\1", Observation)),
+    visit = dplyr::case_when(
+      grepl("V1", Observation) ~ "V1",
+      grepl("V2", Observation) ~ "V2",
+      grepl("V5", Observation) ~ "V5",
+      TRUE                     ~ "Control"),
+    group = dplyr::case_when(
+      disease.state == "Healthy controls" ~ "Control",
+      visit == "V1" ~ "Lyme_V1",
+      visit == "V2" ~ "Lyme_V2",
+      visit == "V5" ~ "Lyme_V5"),
+    condition = ifelse(disease.state == "Healthy controls", "Control", "Lyme"),
+    group     = factor(group,     levels = c("Control","Lyme_V1","Lyme_V2","Lyme_V5")),
+    visit     = factor(visit,     levels = c("Control","V1","V2","V5")),
+    condition = factor(condition, levels = c("Control","Lyme"))
+  )
+
+rownames(annot) <- annot$GSM
+
+cat("Samples per group:\n")
+print(table(annot$group))
+```
+
+---
+
+# 3. Gene Annotation Overview
+
+## 3.1 Gene Biotype Distribution
+
+Understanding which gene types dominate the dataset informs our filtering
+strategy (for DE, protein-coding genes carry the most biological signal).
+
+
+```{r gene-biotypes}
+gene_annot_matched <- gene_annot %>%
+  dplyr::filter(GeneID %in% as.numeric(rownames(counts)))
+  
+biotype_counts <- gene_annot_matched %>%
+  dplyr::count(GeneType, sort = TRUE) %>%
+  dplyr::mutate(pct = round(100 * n / sum(n), 1))
+
+print(biotype_counts)
+
+ggplot(biotype_counts %>% dplyr::filter(n > 50),
+       aes(x = reorder(GeneType, n), y = n, fill = GeneType)) +
+  geom_col(show.legend = FALSE) +
+  geom_text(aes(label = paste0(n, " (", pct, "%)")), hjust = -0.1, size = 3) +
+  coord_flip() +
+  labs(title = "Gene Biotypes in Counts Matrix (GRCh38.p13)",
+       x = "Gene Type", y = "Number of Genes") +
+  scale_fill_viridis_d()
+```
+
+---
+
+# 4. Sample-Level Quality Control
+
+## 4.1 Library Sizes
+
+Library size = total mapped read counts per sample. Large differences
+mean different sequencing depths, which DESeq2 normalizes via size
+factors.
+
+```{r library-sizes, fig.height=10}
+lib_sizes <- data.frame(
+  GSM   = colnames(counts),
+  total = colSums(counts),
+  stringsAsFactors = FALSE
+) %>%
+  dplyr::left_join(annot %>% dplyr::select(GSM, group, Observation), by = "GSM")
+
+ggplot(lib_sizes, aes(x = reorder(Observation, total),
+                       y = total / 1e6, fill = group)) +
+  geom_col() + coord_flip() +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Library Size per Sample (millions of reads)",
+       x = "Sample", y = "Total Counts (millions)", fill = "Group") +
+  theme(axis.text.y = element_text(size = 5))
+```
+
+```{r lib-size-boxplot}
+ggplot(lib_sizes, aes(x = group, y = total / 1e6, fill = group)) +
+  geom_boxplot(alpha = 0.6, outlier.shape = NA) +
+  geom_jitter(width = 0.2, size = 2, alpha = 0.7) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Library Size Distribution by Group",
+       x = "Group", y = "Total Counts (millions)") +
+  theme(legend.position = "none")
+```
+
+## 4.2 Detected Genes per Sample
+
+```{r detected-genes}
+detected <- data.frame(
+  GSM = colnames(counts),
+  n_detected = colSums(counts > 0),
+  stringsAsFactors = FALSE
+) %>%
+  dplyr::left_join(annot %>% dplyr::select(GSM, group), by = "GSM")
+
+ggplot(detected, aes(x = group, y = n_detected, fill = group)) +
+  geom_boxplot(alpha = 0.6, outlier.shape = NA) +
+  geom_jitter(width = 0.2, size = 2, alpha = 0.7) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Number of Detected Genes per Sample (count > 0)",
+       x = "Group", y = "Genes Detected") +
+  theme(legend.position = "none")
+
+cat("Detected genes summary:\n"); print(summary(detected$n_detected))
+```
+
+## 4.3 Gene Count Sparsity
+
+```{r sparsity}
+total_entries  <- prod(dim(counts))
+cat("Sparsity (% zeros):",
+    round(100 * sum(counts == 0) / prod(dim(counts)), 1), "%\n")
+```
+
+---
+
+# 5. Expression Distributions
+
+## 5.1 Per-Sample Density (log2)
+
+```{r density-plots}
+log2_counts <- log2(counts + 1)
+
+# Per-sample density
+log2_long <- log2_counts %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("gene") %>%
+  tidyr::pivot_longer(-gene, names_to = "GSM", values_to = "log2_count") %>%
+  dplyr::left_join(annot %>% dplyr::select(GSM, group), by = "GSM")
+
+ggplot(log2_long, aes(x = log2_count, group = GSM, color = group)) +
+  geom_density(linewidth = 0.3, alpha = 0.5) +
+  scale_color_brewer(palette = "Set2") +
+  labs(title = "Per-Sample Density of log2(count + 1)",
+       x = "log2(count + 1)", y = "Density", color = "Group") +
+  xlim(0, 20)
+```
+
+## 5.2 Boxplots by Sample
+
+```{r boxplots, fig.height=9}
+ggplot(log2_long, aes(x = GSM, y = log2_count, fill = group)) +
+  geom_boxplot(outlier.size = 0.2) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Per-Sample Expression Distribution",
+       x = "Sample", y = "log2(count + 1)") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 4)) +
+  coord_cartesian(ylim = c(0, 18))
+```
+
+## 5.3 Mean-Variance Relationship
+
+RNA-Seq count data is overdispersed (variance > mean), which is why
+DESeq2 uses a negative binomial model rather than simple tests.
+
+```{r mean-variance}
+gene_stats <- data.frame(
+  mean_count = rowMeans(counts),
+  var_count  = apply(counts, 1, var)
+)
+
+ggplot(gene_stats, aes(x = log10(mean_count + 1), y = log10(var_count + 1))) +
+  geom_point(alpha = 0.05, size = 0.5, color = "steelblue") +
+  geom_abline(slope = 1, intercept = 0, color = "red",
+              linetype = "dashed", linewidth = 0.8) +
+  labs(title = "Mean-Variance Relationship (Raw Counts)",
+       subtitle = "Red dashed = Poisson (var = mean). Points above = overdispersion.",
+              x = "log10(Mean + 1)", y = "log10(Variance + 1)")
+```
+
+---
+
+# 6. Gene Filtering
+
+We remove genes with very low counts to reduce noise and lessen the
+multiple-testing burden. We require at least N samples with count >= 10,
+where N = the smallest group size.
+
+```{r prefilter}
+smallest_group <- min(table(annot$group))
+cat("Smallest group size:", smallest_group, "\n")
+keep <- rowSums(counts >= 10) >= smallest_group
+counts_filtered <- counts[keep, ]
+cat("Before:", nrow(counts), "genes\n")
+cat("After: ", nrow(counts_filtered), "genes\n")
+cat("Removed:", nrow(counts) - nrow(counts_filtered),
+    "(", round(100 * (1 - nrow(counts_filtered)/nrow(counts)), 1), "%)\n")
+
+```
+
+```{r post-filter-biotypes}
+
+biotype_after <- gene_annot %>%
+  dplyr::filter(GeneID %in% as.numeric(rownames(counts_filtered))) %>%
+  dplyr::count(GeneType, sort = TRUE) %>%
+  dplyr::mutate(pct = round(100 * n / sum(n), 1))
+
+print(biotype_after)
+```
+
+---
+
+# 7. DESeq2 Normalization
+
+## 7.1 Create DESeqDataSet
+
+The `design = ~ group` formula tells DESeq2 to model expression as a
+function of our experimental groups (Control, Lyme_V1, Lyme_V2, Lyme_V5).
+
+```{r create-dds}
+dds <- DESeqDataSetFromMatrix(
+  countData = counts_filtered,
+  colData   = annot,
+  design    = ~ group
+)
+
+cat("DESeqDataSet:", nrow(dds), "genes x", ncol(dds), "samples\n")
+```
+
+## 7.2 Size Factors
+
+DESeq2's median-of-ratios normalization estimates a size factor per
+sample, correcting for sequencing depth differences. This is superior to
+total-count normalization and far better than the FPKM used in the
+original study.
+
+```{r size-factors}
+dds <- estimateSizeFactors(dds)
+
+sf_df <- data.frame(
+  GSM = colnames(dds), size_factor = sizeFactors(dds),
+  lib_size = colSums(counts_filtered)
+) %>%
+  dplyr::left_join(annot %>% dplyr::select(GSM, group, Observation), by = "GSM")
+
+
+ggplot(sf_df, aes(x = lib_size / 1e6, y = size_factor, color = group)) +
+  geom_point(size = 3) +
+  geom_smooth(method = "lm", se = FALSE, color = "gray40", linetype = "dashed") +
+  scale_color_brewer(palette = "Set2") +
+  labs(title = "DESeq2 Size Factor vs Library Size",
+       x = "Library Size (millions)", y = "Size Factor")
+
+```
+
+## 7.3 Variance Stabilizing Transformation (VST)
+
+Raw counts are unsuitable for visualization because of the mean-variance
+relationship. VST produces values on a log2-like scale with approximately
+constant variance, appropriate for PCA and heatmaps.
+```{r vst}
+vsd <- vst(dds, blind = FALSE)
+
+cat("VST value range:", round(range(assay(vsd)), 2), "\n")
+```
+
+```{r vst-effect, fig.height=5}
+par(mfrow = c(1, 2))
+plot(rowMeans(log2(counts_filtered + 1)),
+     apply(log2(counts_filtered + 1), 1, sd),
+     pch = 16, cex = 0.3, col = rgb(0.2, 0.4, 0.8, 0.1),
+     xlab = "Mean", ylab = "SD", main = "Before: log2(counts+1)")
+plot(rowMeans(assay(vsd)), apply(assay(vsd), 1, sd),     pch = 16, cex = 0.3, col = rgb(0.8, 0.2, 0.2, 0.1),
+     xlab = "Mean", ylab = "SD", main = "After: VST")
+par(mfrow = c(1, 1))
+```
+
+---
+
+# 8. Principal Component Analysis (PCA)
+
+PCA reveals the dominant axes of variation. We want biological signal
+(time point, disease state) to drive separation.
+
+## 8.1 Compute PCA (top 2000 most variable genes)
+
+```{r pca-compute}
+# Use top 2000 most variable genes
+rv <- rowVars(assay(vsd))
+top_idx <- order(rv, decreasing = TRUE)[1:min(2000, length(rv))]
+
+pca <- prcomp(t(assay(vsd)[top_idx, ]), center = TRUE, scale. = TRUE)
+var_pct <- round(100 * summary(pca)$importance[2, ], 1)
+
+pca_df <- data.frame(pca$x[, 1:5]) %>%
+  tibble::rownames_to_column("GSM") %>%
+  dplyr::left_join(annot, by = "GSM")
+```
+
+## 8.2 Scree Plot
+
+```{r scree}
+scree <- data.frame(PC = 1:20, Variance = var_pct[1:20])
+
+ggplot(scree, aes(x = PC, y = Variance)) +
+  geom_col(fill = "steelblue", alpha = 0.7) +
+  geom_line(color = "darkred", linewidth = 0.8) +
+  geom_point(color = "darkred", size = 2) +
+  labs(title = "Scree Plot", x = "Principal Component",
+       y = "% Variance Explained") +
+  scale_x_continuous(breaks = 1:20)
+
+cat("Cumulative variance (PC1-5):", cumsum(var_pct[1:5]), "\n")
+```
+
+## 8.3 PCA by Group (Time Point)
+
+This is the key plot -- do Lyme patients at different time points
+separate from controls?
+
+
+```{r pca-group, fig.width=15, fig.height=5}
+make_pca <- function(df, pcx, pcy, vpct) {
+  ggplot(df, aes(x = .data[[pcx]], y = .data[[pcy]], color = group)) +
+    geom_point(size = 3, alpha = 0.8) +
+    stat_ellipse(level = 0.68, linetype = "dashed") +
+    scale_color_brewer(palette = "Set2") +
+    labs(x = paste0(pcx, " (", vpct[as.numeric(gsub("PC","",pcx))], "%)"),
+         y = paste0(pcy, " (", vpct[as.numeric(gsub("PC","",pcy))], "%)"))}
+
+grid.arrange(
+  make_pca(pca_df, "PC1", "PC2", var_pct) + ggtitle("PC1 vs PC2"),
+  make_pca(pca_df, "PC1", "PC3", var_pct) + ggtitle("PC1 vs PC3"),
+  make_pca(pca_df, "PC2", "PC3", var_pct) + ggtitle("PC2 vs PC3"),
+  ncol = 3
+)
+```
+
+## 8.4 PCA: Disease vs Control with Visit Shape
+
+```{r pca-condition}
+ggplot(pca_df, aes(x = PC1, y = PC2, color = condition, shape = visit)) +
+  geom_point(size = 3.5, alpha = 0.8) +
+  scale_color_manual(values = c(Control = "#2ca02c", Lyme = "#d62728")) +
+  scale_shape_manual(values = c(Control = 16, V1 = 17, V2 = 15, V5 = 18)) +
+  labs(title = "PCA: Lyme Disease vs Controls",
+       x = paste0("PC1 (", var_pct[1], "%)"),
+       y = paste0("PC2 (", var_pct[2], "%)"))
+```
+
+## 8.5 PCA: Patient Trajectories Over Time
+
+Lines connect the same patient across V1 -> V2 -> V5, showing how their
+transcriptome moves through PCA space during treatment and recovery.
+
+```{r pca-trajectories, fig.height=7}
+lyme_pca <- pca_df %>% dplyr::filter(condition == "Lyme") %>%
+  dplyr::arrange(patient_id, visit)
+
+ggplot() +
+  geom_point(data = pca_df %>% dplyr::filter(condition == "Control"),
+             aes(x = PC1, y = PC2), color = "gray60", size = 3, alpha = 0.5) +
+  geom_path(data = lyme_pca,
+            aes(x = PC1, y = PC2, group = patient_id),
+            color = "gray40", alpha = 0.3, linewidth = 0.5) +
+  geom_point(data = lyme_pca,
+             aes(x = PC1, y = PC2, color = visit, shape = visit), size = 3) +
+  scale_color_manual(values = c(V1 = "#d62728", V2 = "#ff7f0e", V5 = "#1f77b4")) +
+  labs(title = "Patient Trajectories Through PCA Space",
+       subtitle = "Gray = controls. Lines connect same patient across visits.",
+       x = paste0("PC1 (", var_pct[1], "%)"),
+       y = paste0("PC2 (", var_pct[2], "%)"))
+```
+
+
+---
+
+# 9. Sample Relationships
+
+## 9.1 Distance Heatmap
+
+```{r distance-heatmap, fig.height=9, fig.width=10}
+sample_dists <- dist(t(assay(vsd)))
+dist_mat     <- as.matrix(sample_dists)
+
+row_annot <- data.frame(Group = annot$group, row.names = annot$GSM)
+ann_colors <- list(Group = c(Control = "#66C2A5", Lyme_V1 = "#FC8D62",
+                              Lyme_V2 = "#8DA0CB", Lyme_V5 = "#E78AC3"))
+
+ann_colors <- list(
+  Group = c(Control = "#66C2A5", Lyme_V1 = "#FC8D62",
+            Lyme_V2 = "#8DA0CB", Lyme_V5 = "#E78AC3")
+)
+
+pheatmap(dist_mat,
+         clustering_distance_rows = sample_dists,
+         clustering_distance_cols = sample_dists,
+         annotation_row = row_annot, annotation_col = row_annot,
+         annotation_colors = ann_colors,
+         show_rownames = FALSE, show_colnames = FALSE,
+         color = viridis(100),
+         main = "Sample-to-Sample Euclidean Distance (VST)")
+```
+
+## 9.2 Correlation Heatmap
+
+```{r corr-heatmap, fig.height=9, fig.width=10}
+pheatmap(cor(assay(vsd)),
+         annotation_row = row_annot, annotation_col = row_annot,
+         annotation_colors = ann_colors,
+         show_rownames = FALSE, show_colnames = FALSE,
+         color = colorRampPalette(brewer.pal(9, "RdYlBu"))(100),
+         main = "Sample Pearson Correlation (VST)")
+```
+
+## 9.3 Top 50 Most Variable Genes
+
+```{r top50-heatmap, fig.height=12, fig.width=10}
+top50_idx <- head(order(rv, decreasing = TRUE), 50)
+top50_ids <- rownames(assay(vsd))[top50_idx]
+
+top50_symbols <- gene_annot$Symbol[match(as.numeric(top50_ids), gene_annot$GeneID)]
+top50_labels  <- ifelse(is.na(top50_symbols) | top50_symbols == "",
+                         top50_ids, top50_symbols)
+hm_mat <- assay(vsd)[top50_idx, ]
+rownames(hm_mat) <- top50_labels
+hm_scaled <- t(scale(t(hm_mat)))
+
+pheatmap(hm_scaled,
+         annotation_col = row_annot,
+         annotation_colors = ann_colors,
+         show_colnames = FALSE,
+         fontsize_row = 7,
+         color = colorRampPalette(c("navy", "white", "firebrick3"))(100),
+         main = "Top 50 Most Variable Genes (Z-scored VST)",
+         cutree_cols = 4,
+         cluster_rows = TRUE, cluster_cols = TRUE)
+```
+
+---
+
+# 10. Longitudinal Completeness
+
+```{r longitudinal}
+annot %>%
+  dplyr::filter(condition == "Lyme") %>%
+  dplyr::group_by(patient_id) %>%
+  dplyr::summarise(n_visits = dplyr::n_distinct(visit),
+                   visits = paste(sort(as.character(visit)), collapse=", "),
+                   .groups = "drop") %>%
+  dplyr::count(n_visits, visits) %>%
+  print()
+```
+
+---
+
+# 11. Differential Expression with DESeq2
+
+## 11.1 Run DESeq2
+
+This performs: (1) size factor estimation, (2) gene-wise dispersion
+estimation, (3) negative binomial GLM fitting, and (4) Wald tests.
+
+```{r run-deseq}
+dds <- DESeq(dds)
+resultsNames(dds)
+```
+
+## 11.2 Extract and Shrink Results
+
+`lfcShrink()` with the `ashr` method produces moderated log2 fold change
+estimates that are more reliable for genes with low counts or high
+variability (Stephens 2016).
+
+```{r extract-results}
+contrasts <- list(
+  V1 = c("group", "Lyme_V1", "Control"),
+  V2 = c("group", "Lyme_V2", "Control"),
+  V5 = c("group", "Lyme_V5", "Control")
+)
+
+# Helper: extract, shrink, and annotate results
+get_annotated_results <- function(dds, contrast, gene_annot) {
+  res <- results(dds, contrast = contrast, alpha = 0.05)
+  res_shrunk <- lfcShrink(dds, contrast = contrast, type = "ashr", res = res)
+  as.data.frame(res_shrunk) %>%
+    tibble::rownames_to_column("GeneID") %>%
+    dplyr::mutate(GeneID_num = as.numeric(GeneID)) %>%
+    dplyr::left_join(
+      gene_annot %>% dplyr::select(GeneID, Symbol, Description, GeneType),
+      by = c("GeneID_num" = "GeneID")) %>%
+    dplyr::select(-GeneID_num) %>%
+    dplyr::arrange(padj)
+}
+res_list <- lapply(contrasts, function(ct)
+  get_annotated_results(dds, ct, gene_annot))
+names(res_list) <- names(contrasts)
+```
+
+## 11.3 DEG Summary
+
+```{r deg-summary}
+deg_summary <- lapply(names(res_list), function(nm) {
+  df <- res_list[[nm]]
+  sig <- df %>% dplyr::filter(!is.na(padj) & padj < 0.05 & abs(log2FoldChange) > 1)
+  data.frame(
+    Comparison = paste0(nm, " vs Control"),
+    Total_DEGs = nrow(sig),
+    Up   = sum(sig$log2FoldChange > 0),
+    Down = sum(sig$log2FoldChange < 0)
+  )
+}) %>% bind_rows()
+print(deg_summary)
+```
+
+## 11.4 Volcano Plots
+
+```{r volcano, fig.width=16, fig.height=6}
+make_volcano <- function(df, title) {
+  df <- df %>%
+    dplyr::mutate(sig = dplyr::case_when(
+      is.na(padj) ~ "NS",
+      padj < 0.05 & log2FoldChange > 1  ~ "Up",
+      padj < 0.05 & log2FoldChange < -1 ~ "Down",
+      TRUE ~ "NS"))
+  top <- df %>% dplyr::filter(sig != "NS") %>% head(10)
+  ggplot(df, aes(x = log2FoldChange, y = -log10(pvalue), color = sig)) +
+    geom_point(alpha = 0.4, size = 1) +
+    scale_color_manual(values = c(Up = "firebrick", Down = "steelblue", NS = "gray70")) +
+    geom_text_repel(data = top, aes(label = Symbol), size = 2.5,
+                    max.overlaps = 15) +
+    geom_vline(xintercept = c(-1, 1), linetype = "dashed", color = "gray40") +
+    geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "gray40") +
+    labs(title = title, x = "log2 Fold Change", y = "-log10(p-value)") +
+    theme(legend.position = "bottom")
+}
+
+grid.arrange(
+  make_volcano(res_list$V1, "V1 (Acute) vs Control"),
+  make_volcano(res_list$V2, "V2 (Post-Treatment) vs Control"),
+  make_volcano(res_list$V5, "V5 (6 Months) vs Control"),
+  ncol = 3
+)
+```
+
+## 11.5 DEG Overlap Across Time Points
+
+How many DEGs are shared across time points?
+
+```{r deg-overlap}
+sig_genes <- lapply(res_list, function(df) {
+  df %>%
+    dplyr::filter(!is.na(padj) & padj < 0.05 & abs(log2FoldChange) > 1) %>%
+    dplyr::pull(GeneID)
+})
+cat("DEGs per time point: V1=", length(sig_genes$V1),
+    " V2=", length(sig_genes$V2), " V5=", length(sig_genes$V5), "\n")
+cat("V1 & V2:", length(intersect(sig_genes$V1, sig_genes$V2)), "\n")
+cat("V1 & V5:", length(intersect(sig_genes$V1, sig_genes$V5)), "\n")
+cat("V2 & V5:", length(intersect(sig_genes$V2, sig_genes$V5)), "\n")
+cat("All 3:  ", length(Reduce(intersect, sig_genes)), "\n")
+```
+
+## 11.6 Save Results
+```{r save-results}
+for (nm in names(res_list)) {
+  write.csv(res_list[[nm]],
+            file.path(results_dir, paste0("DEG_", nm, "_vs_Control.csv")),
+            row.names = FALSE)
+}
+cat("DEG tables saved to:", results_dir, "\n")
+```
+
+---
+# 12. Downstream: 1st Generation -- ORA
+
+Over-Representation Analysis tests whether our DEG list contains more
+genes from a pathway than expected by chance (Khatri et al. 2012,
+Chapter 8.1.1 of Mohrkeg).
+We use `clusterProfiler::enricher()` with gene sets from MSigDB
+(Chapter 8.2 of Mohrkeg), specifically the **Hallmark** (H) and
+**Gene Ontology** (C5) collections.
+
+## 12.1 Prepare MSigDB Gene Sets
+
+```{r msigdb-setup}
+msigdb <- msigdbr(species = "Homo sapiens")
+cat("MSigDB entries:", nrow(msigdb), "\n")
+cat("Collections:", paste(unique(msigdb$gs_collection), collapse = ", "), "\n")
+```
+
+## 12.2 ORA: Hallmark Gene Sets (V1)
+The Hallmark collection contains 50 well-defined biological processes.
+
+```{r ora-hallmark}
+# Build term-to-gene mapping (Chapter 8.2 / 8.4.1 of Mohrkeg)
+term2gene_H <- msigdb %>%
+  dplyr::filter(gs_collection == "H") %>%
+  dplyr::select(gs_name, gene_symbol)
+# Significant DEGs (our gene list)
+sig_symbols_v1 <- res_list$V1 %>%
+  dplyr::filter(!is.na(padj) & padj < 0.05 & abs(log2FoldChange) > 1 &
+                !is.na(Symbol) & Symbol != "") %>%
+  dplyr::pull(Symbol) %>% unique()
+# Background universe = all tested genes
+universe_v1 <- res_list$V1 %>%
+  dplyr::filter(!is.na(Symbol) & Symbol != "") %>%
+  dplyr::pull(Symbol) %>% unique()
+cat("DEGs for ORA:", length(sig_symbols_v1), "\n")
+cat("Universe:", length(universe_v1), "\n")
+ora_hallmark_v1 <- enricher(
+  gene       = sig_symbols_v1,
+  universe   = universe_v1,
+  TERM2GENE  = term2gene_H,
+  pvalueCutoff  = 0.05,
+  pAdjustMethod = "BH",
+  qvalueCutoff  = 1
+)
+
+ora_h_df <- as.data.frame(ora_hallmark_v1)
+cat("Significant Hallmark pathways:", nrow(ora_h_df), "\n")
+print(ora_h_df %>% dplyr::select(ID, GeneRatio, p.adjust, Count) %>% head(10))
+```
+
+```{r ora-hallmark-dotplot, fig.height=7}
+if (nrow(ora_h_df) > 0) {
+  dotplot(ora_hallmark_v1, showCategory = 15) +
+    ggtitle("ORA: Hallmark Pathways Enriched in V1 DEGs")
+}
+```
+## 12.3 ORA: Gene Ontology (C5) for V1
+```{r ora-go}
+term2gene_C5 <- msigdb %>%
+  dplyr::filter(gs_collection == "C5") %>%
+  dplyr::select(gs_name, gene_symbol)
+term2name_C5 <- msigdb %>%
+  dplyr::filter(gs_collection == "C5") %>%
+  dplyr::select(gs_name, gs_description) %>%
+  dplyr::distinct()
+ora_go_v1 <- enricher(
+  gene       = sig_symbols_v1,
+  universe   = universe_v1,
+  TERM2GENE  = term2gene_C5,
+  TERM2NAME  = term2name_C5,
+  pvalueCutoff  = 0.05,
+  pAdjustMethod = "BH",
+  qvalueCutoff  = 1
+)
+ora_go_df <- as.data.frame(ora_go_v1)
+cat("Significant GO terms:", nrow(ora_go_df[ora_go_df$p.adjust < 0.05, ]), "\n")
+```
+
+```{r ora-go-dotplot, fig.height=9}
+if (nrow(ora_go_df) > 0) {
+  dotplot(ora_go_v1, showCategory = 20) +
+    ggtitle("ORA: Top GO Terms Enriched in V1 DEGs")
+}
+```
+
+## 12.4 ORA Across All Time Points
+
+```{r ora-all-timepoints}
+ora_results <- list()
+for (tp in names(res_list)) {
+  sig_sym <- res_list[[tp]] %>%
+    dplyr::filter(!is.na(padj) & padj < 0.05 & abs(log2FoldChange) > 1 &
+                  !is.na(Symbol) & Symbol != "") %>%
+    dplyr::pull(Symbol) %>% unique()
+  univ_sym <- res_list[[tp]] %>%
+    dplyr::filter(!is.na(Symbol) & Symbol != "") %>%
+    dplyr::pull(Symbol) %>% unique()
+
+  ora_results[[tp]] <- enricher(
+    gene = sig_sym, universe = univ_sym,
+    TERM2GENE = term2gene_H,
+    pvalueCutoff = 0.05, pAdjustMethod = "BH", qvalueCutoff = 1
+  )
+}
+
+cat("Significant Hallmark pathways per time point:\n")
+for (tp in names(ora_results))
+  cat("  ", tp, ":", nrow(as.data.frame(ora_results[[tp]])), "\n")
+```
+
+---
+
+# 13. Downstream: 2nd Generation -- GSEA
+
+Gene Set Enrichment Analysis (Subramanian et al. 2005) uses the **full
+ranked gene list** (by log2 fold change), not just the significant genes.
+This avoids arbitrary cutoffs and can detect subtle coordinated changes
+that ORA misses (Chapter 8.1.2.1 of Mohrkeg).
+
+This avoids arbitrary cutoffs and can detect subtle coordinated changes
+that ORA misses (Chapter 8.1.2.1 of Mohrkeg).
+ora_v1 <- enricher(
+  gene = sig_symbols_v1,
+  universe = universe_symbols,
+  TERM2GENE = term2gene,
+  TERM2NAME = term2name,
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH"
+## 13.1 Build Ranked Gene Lists
+```{r gsea-ranked-lists}
+make_ranked_list <- function(res_df) {
+  res_df %>%
+    dplyr::filter(!is.na(Symbol) & Symbol != "" & !is.na(log2FoldChange)) %>%
+    dplyr::arrange(dplyr::desc(log2FoldChange)) %>%
+    dplyr::distinct(Symbol, .keep_all = TRUE) %>%
+    dplyr::select(Symbol, log2FoldChange) %>%
+    tibble::deframe()
+}
+ranked_lists <- lapply(res_list, make_ranked_list)
+cat("Ranked list sizes:", sapply(ranked_lists, length), "\n")
+```
+## 13.2 GSEA: Hallmark (V1)
+```{r gsea-hallmark-v1}
+gsea_hallmark_v1 <- GSEA(
+  geneList  = ranked_lists$V1,
+  TERM2GENE = term2gene_H,
+  pvalueCutoff = 1,
+  eps = 0
+)
+
+gsea_h_df <- as.data.frame(gsea_hallmark_v1)
+cat("GSEA Hallmark results:", nrow(gsea_h_df), "terms tested\n")
+cat("Significant (padj<0.05):", sum(gsea_h_df$p.adjust < 0.05), "\n")
+gsea_h_df %>%
+  dplyr::filter(p.adjust < 0.05) %>%
+  dplyr::select(ID, NES, pvalue, p.adjust) %>%
+  dplyr::arrange(dplyr::desc(abs(NES))) %>%
+  head(15) %>%
+  print()
+```
+
+```{r gsea-hallmark-dotplot, fig.height=8}
+if (sum(gsea_h_df$p.adjust < 0.05) > 0) {
+  dotplot(gsea_hallmark_v1, showCategory = 20,
+          split = ".sign") + facet_grid(~ .sign) +
+    ggtitle("GSEA: Hallmark Pathways (V1 vs Control)")
+}
+```
+
+## 13.3 GSEA Enrichment Plots for Key Pathways
+
+These "mountain plots" show how the genes in a pathway are distributed
+across the ranked list. A peak at the left = upregulated, right =
+downregulated.
+
+```{r gsea-enrichment-plots, fig.height=4, fig.width=8}
+library(enrichplot)
+key_pathways <- c(
+  "HALLMARK_INFLAMMATORY_RESPONSE",
+  "HALLMARK_TNFA_SIGNALING_VIA_NFKB",
+  "HALLMARK_INTERFERON_GAMMA_RESPONSE",
+  "HALLMARK_COMPLEMENT"
+)
+for (pw in key_pathways) {
+  if (pw %in% gsea_h_df$ID) {
+    print(gseaplot2(gsea_hallmark_v1, geneSetID = pw, title = pw))
+  }
+}
+```
+
+## 13.4 GSEA Across All Time Points
+
+```{r gsea-all-timepoints}
+gsea_results <- list()
+for (tp in names(ranked_lists)) {
+  gsea_results[[tp]] <- GSEA(
+    geneList  = ranked_lists[[tp]],
+    TERM2GENE = term2gene_H,
+    pvalueCutoff = 1,
+    eps = 0
+  )
+# Compare NES across time points for significant pathways
+nes_comparison <- lapply(names(gsea_results), function(tp) {
+  df <- as.data.frame(gsea_results[[tp]])
+  if (nrow(df) > 0) {
+    df %>%
+      dplyr::select(ID, NES, p.adjust) %>%
+      dplyr::mutate(timepoint = tp)
+  }
+}) %>% bind_rows()
+cat("Pathways tested across all time points:\n")
+nes_wide <- nes_comparison %>%
+  dplyr::select(ID, NES, timepoint) %>%
+  tidyr::pivot_wider(names_from = timepoint, values_from = NES)
+print(nes_wide %>% head(15))
+```
+
+
+```{r nes-heatmap, fig.height=8, fig.width=7}
+# Heatmap of NES values across time points
+sig_any <- nes_comparison %>%
+  dplyr::filter(p.adjust < 0.05) %>%
+  dplyr::pull(ID) %>% unique()
+if (length(sig_any) > 0) {
+  nes_mat <- nes_comparison %>%
+    dplyr::filter(ID %in% sig_any) %>%
+    dplyr::select(ID, NES, timepoint) %>%
+    tidyr::pivot_wider(names_from = timepoint, values_from = NES) %>%
+    tibble::column_to_rownames("ID") %>%
+    as.matrix()
+  nes_mat[is.na(nes_mat)] <- 0
+  pheatmap(nes_mat,
+           color = colorRampPalette(c("steelblue", "white", "firebrick"))(100),
+           cluster_cols = FALSE,
+           main = "GSEA NES: Hallmark Pathways Across Time Points",
+           fontsize_row = 7)
+}
+```
+
+---
+# 14. Save All Downstream Results
+```{r save-downstream}
+# ORA results
+for (tp in names(ora_results)) {
+  df <- as.data.frame(ora_results[[tp]])
+  if (nrow(df) > 0)
+    write.csv(df, file.path(results_dir, paste0("ORA_Hallmark_", tp, ".csv")),
+              row.names = FALSE)
+}
+# GSEA results
+for (tp in names(gsea_results)) {
+  df <- as.data.frame(gsea_results[[tp]])
+  if (nrow(df) > 0)
+    write.csv(df, file.path(results_dir, paste0("GSEA_Hallmark_", tp, ".csv")),
+              row.names = FALSE)
+}
+cat("All results saved to:", results_dir, "\n")
+```
+
+
+---
+# 15. Summary of Findings
+```{r findings-summary}
+cat("============================================================\n")
+cat("          ANALYSIS SUMMARY\n")
+cat("============================================================\n\n")
+cat("DATA:\n")
+cat("  Reference genome: GRCh38.p13 (vs hg19 in original)\n")
+cat("  Samples analyzed:", ncol(counts_filtered), "\n")
+cat("  Genes after filtering:", nrow(counts_filtered), "\n\n")
+cat("DIFFERENTIAL EXPRESSION (DESeq2, |lfc|>1, padj<0.05):\n")
+print(deg_summary)
+cat("\nORIGINAL STUDY (Limma/Voom, |FC|>1.5, padj<0.001):\n")
+cat("  V1: 1235 DEGs | V2: 1060 DEGs | V5: 686 DEGs\n\n")
+cat("PATHWAY ANALYSIS:\n")
+cat("  ORA Hallmark (V1):", nrow(as.data.frame(ora_hallmark_v1)), "enriched\n")
+cat("  ORA GO (V1):", sum(as.data.frame(ora_go_v1)$p.adjust < 0.05), "enriched\n")
+cat("  GSEA Hallmark (V1):", sum(as.data.frame(gsea_hallmark_v1)$p.adjust < 0.05),
+    "significant\n")
+cat("\nKEY IMPROVEMENTS OVER ORIGINAL:\n")
+cat("  1. Modern genome reference (GRCh38 vs hg19)\n")
+cat("  2. Raw counts + DESeq2 (vs FPKM + Limma/Voom)\n")
+cat("  3. Open-source pathway analysis (clusterProfiler + MSigDB vs IPA)\n")
+cat("  4. Added GSEA (2nd generation, not in original study)\n")
+cat("============================================================\n")
+```
+---
+
+# Session Info
+
+```{r session-info}
+sessionInfo()
+```
