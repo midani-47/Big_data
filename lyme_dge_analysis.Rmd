@@ -66,8 +66,7 @@ theme_set(theme_bw(base_size = 13)) # this is for the plots
 ```
 
 
-We use explicit `dplyr::` prefixes on key functions (`filter`, `select`,
-`count`, `mutate`, `arrange`) throughout this document because
+We had to use explicit `dplyr::` prefixes on key functions (`filter`, `select`, `count`, `mutate`, `arrange`) throughout this document because
 `clusterProfiler` loads packages that mask some of these names.
 
 
@@ -88,10 +87,8 @@ for (d in c(results_dir, plots_dir))
 
 # 2. Data Loading
 
-The raw FASTQ reads from GEO (GSE63085) were re-aligned by Thomas
-Thomas's book to the modern **GRCh38.p13** human reference genome (replacing
-the outdated hg19 used in the original 2016 study) and quantified
-into raw integer counts -- the proper input for DESeq2.
+The raw FASTQ reads from GEO (GSE63085) were re-aligned by Thomas to the modern **GRCh38.p13** human reference genome (replacing
+the outdated hg19 used in the original 2016 study) and quantified into raw integer counts, the proper input for DESeq2. Let's not forget to ask Thomas which aligner tool he used (STAR + featureCounts? HISAT2 + HTSeq?). And more importantly, why are there 22 missing samples were excluded during re-alignment? or are they simply not processed at all?
 
 **References:**
 
@@ -110,8 +107,10 @@ cat("Counts matrix:", nrow(counts_raw), "genes x", ncol(counts_raw), "samples\n"
 
 ## 2.2 Gene Annotation (featureData)
 
-This maps NCBI Entrez Gene IDs to gene symbols, biotypes, chromosomal
-locations, and GO terms.
+This maps NCBI Entrez Gene IDs to gene symbols, biotypes, chromosomal locations, and GO terms.
+
+NCBI Entrez as the "Google Search" engine for biological data. It’s a massive integrated system managed by the National Center for Biotechnology Information (NCBI) that links together different databases—DNA sequences, protein structures, and medical literature (PubMed).
+According to LLMs, when we see an Entrez ID (like those numbers in your matrix), it’s a unique "social security number" for a gene. Names (Symbols) change as scientists argue, but Entrez IDs stay the same.
 
 ```{r load-gene-annot}
 gene_annot <- read.delim(
@@ -120,6 +119,32 @@ gene_annot <- read.delim(
 )
 cat("Gene annotation:", nrow(gene_annot), "x", ncol(gene_annot), "\n")
 ```
+> Explanation of the columns (source: LLMS):
+
+* **GeneID**: This matches the row names in your counts matrix. It’s your primary key.
+
+* **Symbol**: The "human-friendly" name (e.g., TP53, BRCA1). This is what you’ll put in your final paper or report.
+
+* **Description**: A long-form name of what the gene actually does (e.g., "tumor protein p53").
+
+* **EnsemblGeneID**: Another ID system (starting with ENSG...). Bioinformaticians often use both Entrez and Ensembl because some tools prefer one over the other.
+
+* **GeneType**: Usually, you only want to analyze protein-coding genes. Most researchers filter out the pseudo (dead "fossil" genes) and ncRNA (non-coding) unless they are specifically looking for them.
+
+* **Status**: You should likely filter for "active". A "discontinued" status means the gene was merged into another record or found to be a mistake in the genome mapping.
+
+* **ChrAcc, ChrStart, ChrStop, Orientation**: These are the "Location" columns. They tell you exactly where the gene sits on which chromosome and which way it's facing. This is vital if you want to see if a treatment affects a whole neighborhood of genes (a "cluster") or just one.
+
+* **GOFunction / GOProcess / GOComponent**: "GO" stands for Gene Ontology. These tell you the "job" of the gene. **Process**: What is the "big picture" goal? (e.g., "Cell Division"); **Function**: What is the specific biochemical task? (e.g., "Binding to DNA"); and **Component**: Where does it happen? (e.g., "Mitochondria").
+
+
+```{r meta_EDA}
+names(gene_annot)
+cat("\n\nGene biotypes:"); print(table(gene_annot$GeneType))
+
+cat("\n\nStatus unique:");print(table(gene_annot$Status))
+```
+> We have ~39k total entries, but only 19,416 are protein-coding. 
 
 ## 2.3 Sample Annotation
 
