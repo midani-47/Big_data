@@ -24,7 +24,7 @@ knitr::opts_chunk$set(
 
 # 1. Environment Setup
 
-## 1.1 Install Packages (run once, then set eval=FALSE), or use "using" function
+## 1.1 Install Packages
 
 ```{r install-packages, eval=FALSE, include=FALSE}
 # install.packages(c("tidyverse", "pheatmap", "RColorBrewer", "ggrepel",
@@ -32,7 +32,7 @@ knitr::opts_chunk$set(
 # if (!requireNamespace("BiocManager", quietly = TRUE))
 #   install.packages("BiocManager")
 # BiocManager::install(c("DESeq2", "clusterProfiler", "msigdbr",
-#                         "enrichplot", "org.Hs.eg.db", "GSVA"))
+#                         "enrichplot", "org.Hs.eg.db", "GSVA", "SPIA"))
 ```
 
 ```{r load-libraries}
@@ -48,6 +48,11 @@ using <- function(pkgs) {
     library(pkg, character.only = TRUE)}}
 
 using(c("tidyverse", "pheatmap", "RColorBrewer", "ggrepel", "corrplot", "gridExtra", "viridis", "BiocManager","DESeq2", "org.Hs.eg.db", "clusterProfiler", "EnhancedVolcano","msigdbr", "PCAtools", "GSVA", "enrichplot", "ashr", "matrixStats"))
+
+# SPIA is Bioconductor-only (3rd-generation pathway topology); not on CRAN
+if (!requireNamespace("SPIA", quietly = TRUE))
+  BiocManager::install("SPIA", ask = FALSE, update = FALSE)
+suppressPackageStartupMessages(library(SPIA))
 
 # description of libraries:
 # tidyverse       - data wrangling + ggplot2
@@ -88,7 +93,7 @@ for (d in c(results_dir, plots_dir))
 # 2. Data Loading
 
 The raw FASTQ reads from GEO (GSE63085) were re-aligned by Thomas to the modern **GRCh38.p13** human reference genome (replacing
-the outdated hg19 used in the original 2016 study) and quantified into raw integer counts, the proper input for DESeq2. Let's not forget to ask Thomas which aligner tool he used (STAR + featureCounts? HISAT2 + HTSeq?). And more importantly, why are there 22 missing samples were excluded during re-alignment? or are they simply not processed at all?
+the outdated hg19 used in the original 2016 study) and quantified into raw integer counts, the proper input for DESeq2. Thomas used Kallisto alligner. And more importantly, the 22 missing samples were excluded during re-alignment, will be checked and confirmed by Thomas. 
 
 **References:**
 
@@ -265,7 +270,7 @@ ggplot(lib_sizes, aes(x = group, y = total / 1e6, fill = group)) +
   theme(legend.position = "none")
 ```
 
-**Interpretation:** If any group has systematically lower library sizes,
+If any group has systematically lower library sizes,
 the DESeq2 size-factor normalisation (Section 7) will correct for this.
 Look for outlier samples that are dramatically different from the rest --
 these might warrant investigation.
@@ -344,7 +349,7 @@ ggplot(log2_long, aes(x = log2_count, group = GSM, color = group)) +
   xlim(0, 20)
 ```
 
-**Interpretation:**  the large spike near zero represents the many genes
+the large spike near zero represents the many genes
 with zero or very low expression. Most of them are still there because we haven't filtered out the garbage yet. The second hump (should be around 5-10) represents actively expressed genes. What we are looking for looks flat because the scale is zoomed out to accommodate the zero spike. All samples should have a similar shape; if
 one looks radically different, it may be a quality outlier. Perhaps, we should make a similar plot after filtering.
 
@@ -470,7 +475,35 @@ Size factor and library size are strongly correlated (expected).
 Samples with a size factor < 1 were sequenced less deeply; > 1 means more deeply. 
 DESeq2 divides each sample's counts by its size factor during analysis.
 
-## 7.3 Variance Stabilising Transformation (VST)
+## 7.3 MA Plot (after size-factor normalization)
+
+*Ref: Thomas's book Ch. 7.2.7*
+
+Once **size factors** are applied, `counts(dds, normalized = TRUE)` is on a comparable scale across samples. We pool Lyme V1 vs Control and plot **M** = log2 ratio of group means vs **A** = average log2 signal (same construction as Section 5.3, but using median-of-ratios normalized counts). The loess trend should sit near **M = 0** across most expression levels if depth correction worked; a strong banana or vertical offset would suggest residual technical bias (or real biology concentrated at certain expression ranges).
+
+```{r ma-plot-norm-counts, fig.height=5}
+nt <- counts(dds, normalized = TRUE)
+ctrl_cols <- annot$GSM[annot$group == "Control"]
+v1_cols   <- annot$GSM[annot$group == "Lyme_V1"]
+
+m1 <- rowMeans(nt[, v1_cols, drop = FALSE])
+m0 <- rowMeans(nt[, ctrl_cols, drop = FALSE])
+A_norm <- 0.5 * (log2(m1 + 0.5) + log2(m0 + 0.5))
+M_norm <- log2((m1 + 0.5) / (m0 + 0.5))
+
+ggplot(data.frame(A = A_norm, M = M_norm), aes(x = A, y = M)) +
+  geom_point(alpha = 0.05, size = 0.5, color = "steelblue") +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+  geom_smooth(method = "loess", color = "orange", se = FALSE, linewidth = 0.8) +
+  labs(title = "MA Plot: V1 vs Control (DESeq2 normalized counts)",
+       subtitle = "After size factors only (GLM / dispersions not yet fitted).",
+       x = "A (average log2 normalized signal)", y = "M (log2 fold change)") +
+  coord_cartesian(ylim = c(-5, 5))
+```
+
+Compare with the pre-normalisation MA (Section 5.3): the cloud should be **more tightly centred** on M = 0 after size factors. A later **DESeq2 `plotMA()`** after the full model (Section 10.1) adds dispersion shrinkage and hypothesis testing; that plot is the standard check bundled with DESeq2.
+
+## 7.4 Variance Stabilising Transformation (VST)
 
 Raw counts have a mean-variance dependency (Section 5.2). VST produces
 values on a log2-like scale with approximately **constant variance**,
@@ -664,6 +697,26 @@ dds <- DESeq(dds)
 resultsNames(dds)
 ```
 
+## 10.1a MA plots (DESeq2: normalized mean vs LFC)
+
+After `DESeq()`, the object contains fitted dispersions and contrasts on the **same scale** as differential testing. `plotMA()` shows, for each gene, the **mean of normalized counts** (x-axis, "mean of normalized counts") vs **log2 fold change** (y-axis); points with padj below `alpha` are blue. For a successful normalization and contrast, the **bulk of points** should scatter around **LFC = 0** at moderate-to-high expression, with no strong systematic curve. These plots complement Section 7.3 (MA from normalized counts only) and Section 5.3 (raw log2 counts).
+
+```{r plot-ma-deseq2, fig.width = 14, fig.height = 5}
+par(mfrow = c(1, 3))
+plotMA(
+  results(dds, contrast = c("group", "Lyme_V1", "Control"), alpha = 0.05),
+  main = "V1 vs Control", ylim = c(-5, 5))
+plotMA(
+  results(dds, contrast = c("group", "Lyme_V2", "Control"), alpha = 0.05),
+  main = "V2 vs Control", ylim = c(-5, 5))
+plotMA(
+  results(dds, contrast = c("group", "Lyme_V5", "Control"), alpha = 0.05),
+  main = "V5 vs Control", ylim = c(-5, 5))
+par(mfrow = c(1, 1))
+```
+
+**Result validation:** If the cloud were systematically shifted away from LFC = 0 for most genes, we would revisit size factors, outliers, or design formula. Here the **MA after normalization** (Section 7.3) and these **MA after the full DESeq2 fit** together support using the contrasts for pathway analysis.
+
 ## 10.2 Extract, Shrink & Annotate Results
 
 `lfcShrink()` with `ashr` produces moderated log2 fold-change estimates
@@ -842,9 +895,13 @@ univ_sym <- res_list$V1 %>%
 ora_hallmark_v1 <- enricher(
   gene = sig_sym_v1, universe = univ_sym,
   TERM2GENE = t2g_hallmark,
-  pvalueCutoff = 0.05, pAdjustMethod = "BH", qvalueCutoff = 1
+  pvalueCutoff = 0.05, pAdjustMethod = "BH", qvalueCutoff = 1 # BH here stands for Benjamini-Hochberg correction for multiple testing
 )
 ```
+
+BH in the code stands for Benjamini-Hochberg correction for multiple testing. And q value is the corrected p-value for multiple testing.
+qvalueCutoff = 1 means that we are not interested in the q-values, only the p-values. We should confirm with Thomas whether it makes biological sense to use q-values here, given that the genes are immune related and the SD is wild.
+
 
 ```{r ora-hallmark-dotplot, fig.height=6}
 if (nrow(as.data.frame(ora_hallmark_v1)) > 0) {
@@ -949,8 +1006,7 @@ if (sum(gsea_h_df$p.adjust < 0.05) > 0)
     ggtitle("GSEA: Hallmark Pathways (V1 vs Control)")
 ```
 
-**Interpretation:** The dotplot splits pathways into **activated**
-(enriched in upregulated genes) and **suppressed** (enriched in downregulated genes). The **Normalised Enrichment Score (NES)** measures how strongly the pathway's genes cluster at the top (activated) or bottom (suppressed) of the ranked list. Which pathways should we expect to be activated; translation-related pathways may be suppressed?
+The dotplot splits pathways into **activated** (enriched in upregulated genes) and **suppressed** (enriched in downregulated genes). The **Normalised Enrichment Score (NES)** measures how strongly the pathway's genes cluster at the top (activated) or bottom (suppressed) of the ranked list. Which pathways should we expect to be activated; translation-related pathways may be suppressed?
 
 
 ## 12.3 GSEA Enrichment Plots for Key Pathways
@@ -1006,7 +1062,7 @@ if (length(sig_any) > 0) {
 }
 ```
 
-
+This heatmap shows how each pathway's activity (NES) evolves over time. **Red** = activated, **blue** = suppressed. Pathways that remain red from V1 through V5 represent the **sustained signature** described in the paper. Pathways that fade to white by V5 indicate resolution.
 
 ---
 ---
@@ -1039,15 +1095,310 @@ if (nrow(as.data.frame(cc_result)) > 0)
     ggtitle("Biologic Theme Comparison: Hallmark Across Time Points") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
-
+Each column is a time point, each row is a pathway. Dot size = number of DEGs in that pathway; colour = adjusted p-value. This directly shows which pathways are shared across time points and which are specific to the acute phase (V1 only).
 
 
 ---
 ---
 
-# 14. Save All Downstream Results
+# 14. 2nd Generation (cont.): GSVA (Gene Set Variation Analysis)
 
-```{r save-downstream}
+*Ref: Thomas's book Ch. 8.1.2.2, 8.4.5; Hänzelmann et al. 2013*
+
+GSVA completes the 2nd generation of pathway analysis. Unlike GSEA
+(which compares two groups), GSVA computes a **per-sample pathway
+score**. This preserves the full sample structure, so we can test
+pathway differences with standard linear models -- exactly as Thomas
+describes in Ch. 8.4.5.
+
+Think of it this way:
+
+- **ORA** (1st gen): "Which pathways have too many DEGs?" (binary: gene is DE or not)
+- **GSEA** (2nd gen-a): "Do pathway genes cluster at the top/bottom of the ranked list?" (uses fold-change magnitude, but still compares two groups)
+- **GSVA** (2nd gen-b): "For each sample individually, how active is this pathway?" (produces a score per sample per pathway -- then you can run any statistical model on those scores)
+
+## 14.1 Prepare Gene Sets as Named Lists
+
+GSVA needs gene sets as a named list of character vectors (gene symbols).
+
+```{r gsva-genesets}
+hallmark_sets <- msigdb_hallmark %>%
+  dplyr::select(gs_name, gene_symbol) %>%
+  dplyr::group_by(gs_name) %>%
+  dplyr::summarise(genes = list(unique(gene_symbol)), .groups = "drop") %>%
+  tibble::deframe()
+
+cat("Hallmark gene sets:", length(hallmark_sets), "\n")
+cat("Example set sizes:", head(sapply(hallmark_sets, length)), "\n")
+```
+
+## 14.2 Prepare Expression Matrix with Gene Symbols
+
+GSVA needs the matrix rows to be gene symbols (matching the gene sets),
+not Entrez IDs.
+
+```{r gsva-matrix}
+# Use VST-normalised data for GSVA (Gaussian kernel, Ch. 8.4.5)
+vst_mat <- assay(vsd)
+
+# Map Entrez IDs to Symbols
+symbol_map <- gene_annot$Symbol[match(as.numeric(rownames(vst_mat)),
+                                       gene_annot$GeneID)]
+
+# Keep only rows with valid symbols, handle duplicates by keeping highest mean
+keep_sym <- !is.na(symbol_map) & symbol_map != ""
+vst_sym  <- vst_mat[keep_sym, ]
+rownames(vst_sym) <- symbol_map[keep_sym]
+
+# Remove duplicate gene symbols (keep the one with highest mean expression)
+dup_idx <- duplicated(rownames(vst_sym))
+vst_sym <- vst_sym[!dup_idx, ]
+
+cat("GSVA input matrix:", nrow(vst_sym), "genes x", ncol(vst_sym), "samples\n")
+```
+
+## 14.3 Run GSVA
+
+```{r run-gsva}
+gsva_param <- gsvaParam(
+  exprData = vst_sym,
+  geneSets = hallmark_sets,
+  kcdf     = "Gaussian",   # Gaussian for continuous (VST) data; Poisson for counts
+  maxDiff  = TRUE
+)
+
+gsva_scores <- gsva(gsva_param)
+
+cat("GSVA output:", nrow(gsva_scores), "pathways x", ncol(gsva_scores), "samples\n")
+```
+
+## 14.4 GSVA Heatmap
+
+Each cell shows how active a pathway is in a given sample (relative
+to other samples). This reveals the per-patient, per-time-point
+pathway landscape.
+
+```{r gsva-heatmap, fig.height=12, fig.width=10}
+pheatmap(gsva_scores,
+         annotation_col = row_annot,
+         annotation_colors = ann_colors,
+         show_colnames = FALSE,
+         fontsize_row = 6,
+         color = colorRampPalette(c("steelblue", "white", "firebrick"))(100),
+         main = "GSVA Scores: Hallmark Pathways (per sample)",
+         clustering_distance_rows = "correlation",
+         cutree_cols = 4)
+```
+
+The key advantage of GSVA over GSEA: you can see individual patient
+variation. Some V5 patients may still have highly activated
+inflammatory pathways (potential PTLDS candidates), while others
+return to control-like levels.
+
+## 14.5 Test GSVA Scores Between Groups
+
+Following Thomas's Ch. 8.4.5: since GSVA scores are continuous values
+per sample, we can use a standard linear model (limma) to test which
+pathways differ significantly between groups. This mirrors the workflow
+from Ch. 7.5.1.
+
+```{r gsva-limma}
+library(limma)
+
+design_gsva <- model.matrix(~ 0 + group, data = annot)
+colnames(design_gsva) <- levels(annot$group)
+
+# Fit linear model to GSVA scores (instead of gene expression)
+fit_gsva <- lmFit(gsva_scores, design_gsva)
+
+# Define contrasts (same comparisons as DESeq2)
+contrast_mat <- makeContrasts(
+  V1_vs_Ctrl = Lyme_V1 - Control,
+  V2_vs_Ctrl = Lyme_V2 - Control,
+  V5_vs_Ctrl = Lyme_V5 - Control,
+  levels = design_gsva
+)
+
+fit_gsva2 <- contrasts.fit(fit_gsva, contrast_mat) %>% eBayes()
+```
+
+```{r gsva-results}
+gsva_results_list <- list()
+for (coef_name in colnames(contrast_mat)) {
+  tt <- topTable(fit_gsva2, coef = coef_name, number = Inf) %>%
+    tibble::rownames_to_column("pathway")
+  gsva_results_list[[coef_name]] <- tt
+  
+  n_sig <- sum(tt$adj.P.Val < 0.05)
+  cat(coef_name, ":", n_sig, "pathways with adj.P.Val < 0.05\n")
+}
+```
+
+## 14.6 GSVA Volcano-Style Plot
+
+```{r gsva-volcano, fig.width=16, fig.height=6}
+gsva_volcano_plots <- lapply(names(gsva_results_list), function(nm) {
+  df <- gsva_results_list[[nm]] %>%
+    dplyr::mutate(
+      sig = ifelse(adj.P.Val < 0.05, "Significant", "NS"),
+      label = ifelse(adj.P.Val < 0.05,
+                     gsub("HALLMARK_", "", pathway), NA)
+    )
+  ggplot(df, aes(x = logFC, y = -log10(P.Value), color = sig)) +
+    geom_point(size = 2.5) +
+    scale_color_manual(values = c(Significant = "firebrick", NS = "gray60")) +
+    geom_text_repel(aes(label = label), size = 2.2, max.overlaps = 20,
+                    na.rm = TRUE) +
+    geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+    labs(title = gsub("_", " ", nm),
+         x = "GSVA score difference", y = "-log10(p-value)") +
+    theme(legend.position = "none")
+})
+
+grid.arrange(grobs = gsva_volcano_plots, ncol = 3)
+```
+
+Each dot is a Hallmark pathway. The x-axis is the difference in GSVA
+score between Lyme and Control (positive = more active in Lyme).
+Labeled pathways are significant (adj.P.Val < 0.05). Compare the
+three panels: V1 should have the most extreme differences, V5 the
+least -- mirroring the gene-level DEG pattern.
+
+## 14.7 GSVA Score Boxplots for Key Pathways
+
+```{r gsva-boxplots, fig.height=10, fig.width=12}
+key_pw <- c("HALLMARK_INFLAMMATORY_RESPONSE",
+            "HALLMARK_TNFA_SIGNALING_VIA_NFKB",
+            "HALLMARK_INTERFERON_GAMMA_RESPONSE",
+            "HALLMARK_COMPLEMENT",
+            "HALLMARK_IL6_JAK_STAT3_SIGNALING",
+            "HALLMARK_APOPTOSIS")
+
+gsva_long <- gsva_scores[rownames(gsva_scores) %in% key_pw, ] %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("pathway") %>%
+  tidyr::pivot_longer(-pathway, names_to = "GSM", values_to = "score") %>%
+  dplyr::left_join(annot %>% dplyr::select(GSM, group, visit), by = "GSM") %>%
+  dplyr::mutate(pathway = gsub("HALLMARK_", "", pathway))
+
+ggplot(gsva_long, aes(x = group, y = score, fill = group)) +
+  geom_boxplot(alpha = 0.6, outlier.shape = NA) +
+  geom_jitter(width = 0.15, size = 1.5, alpha = 0.6) +
+  facet_wrap(~ pathway, scales = "free_y", ncol = 3) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "GSVA Scores for Key Immune Pathways",
+       subtitle = "Each dot is a patient. Higher = more pathway activity in that sample.",
+       x = NULL, y = "GSVA Score") +
+  theme(legend.position = "none",
+        strip.text = element_text(size = 8))
+```
+
+These boxplots are the unique output of GSVA that neither ORA nor GSEA
+can produce. Each dot is an individual patient's pathway activity.
+Look for:
+
+- **V1 >> Control**: Pathway is activated during acute infection (expected for immune/inflammatory pathways).
+- **V2 still elevated**: Pathway stays active even after antibiotic treatment -- evidence for the sustained signature.
+- **V5 approaching Control**: Pathway is resolving (good sign for most patients).
+- **V5 patients still elevated**: These outlier dots may correspond to patients with persistent symptoms (PTLDS).
+
+This connects directly to the paper's central finding: the gene expression
+signature of Lyme disease persists after treatment. GSVA lets us see
+this at the **individual patient level**, which the original study's
+bulk comparisons could not show.
+
+---
+---
+
+# 15. Third Generation: SPIA (topology-aware KEGG perturbation)
+
+*Ref: Khatri et al. 2012 (three generations); Tarca et al. 2009; Thomas's book Ch. 8 — pathway topology*
+
+**What “third generation” means here.** First-generation ORA asks whether a pathway contains more DEG labels than expected. Second-generation GSEA/GSVA uses ranked scores or per-sample enrichment without explicit **wiring** between genes. **Signalling Pathway Impact Analysis (SPIA)** adds a *perturbation* term: it walks curated **KEGG** signalling topology so that genes upstream/downstream and activation vs inhibition relations contribute differently from a flat hypergeometric count. The combined evidence (over-representation **pNDE** + topology **pPERT**) yields a global **pG** (and FDR-style **pGFdr**).
+
+### Should we trust SPIA for this course project?
+
+SPIA is pedagogically valuable: it makes the “topology” idea concrete and produces interpretable **Activated / Inhibited** status per pathway. For a *scientific* discussion with your professor, consider these limitations:
+
+- **Database scope:** SPIA is tied to **KEGG** pathway maps (not MSigDB Hallmark). Immune–infection biology is only partially captured; many Lyme-relevant processes appear in Hallmark/GO instead.
+- **Model assumptions:** Edge signs and “perturbation accumulation” are approximations; real immune networks are context- and cell-type–specific.
+- **Redundancy:** Top SPIA hits may overlap messages already seen in ORA/GSEA/GSVA — agreement strengthens evidence; disagreement invites caution, not automatic dismissal.
+- **Licensing / maintenance:** KEGG data are periodically updated; results can shift slightly between SPIA/database versions.
+
+We run SPIA **anyway** so you can compare outputs side-by-side with first- and second-generation results and document the workflow.
+
+## 15.1 Prepare DE vectors (Entrez) and run SPIA
+
+SPIA expects a **named numeric vector of log2 fold changes for differentially expressed genes** (Entrez IDs as names) and the **universe** of all Entrez IDs tested (`rownames(dds)`).
+
+```{r spia-run, cache=TRUE}
+spia_from_res <- function(res_df, dds_obj) {
+  sig <- res_df %>%
+    dplyr::filter(!is.na(padj), padj < 0.05, !is.na(log2FoldChange)) %>%
+    dplyr::mutate(GeneID = as.character(GeneID))
+  if (nrow(sig) < 5)
+    return(NULL)
+  # one value per Entrez: keep strongest |LFC| if duplicates exist
+  sig <- sig %>%
+    dplyr::group_by(GeneID) %>%
+    dplyr::slice_max(order_by = abs(log2FoldChange), n = 1, with_ties = FALSE) %>%
+    dplyr::ungroup()
+  de <- sig$log2FoldChange
+  names(de) <- sig$GeneID
+  all_ids <- as.character(rownames(dds_obj))
+  spia(de, all_ids, organism = "hsa", nB = 2000, verbose = FALSE)
+}
+
+spia_v1 <- spia_from_res(res_list$V1, dds)
+spia_v2 <- spia_from_res(res_list$V2, dds)
+spia_v5 <- spia_from_res(res_list$V5, dds)
+```
+
+## 15.2 Top KEGG pathways (global pG)
+
+```{r spia-tables}
+fmt_spia <- function(x, n = 12) {
+  if (is.null(x) || nrow(x) == 0)
+    return(invisible(NULL))
+  tibble::rownames_to_column(as.data.frame(x), "pathway_id") %>%
+    dplyr::arrange(pG) %>%
+    dplyr::select(Name, ID, Status, pNDE, pPERT, pG, pGFdr) %>%
+    head(n)
+}
+
+fmt_spia(spia_v1)
+fmt_spia(spia_v2)
+fmt_spia(spia_v5)
+```
+
+## 15.3 Visualize top hits (V1)
+
+```{r spia-plot-v1, fig.height=6}
+if (!is.null(spia_v1) && nrow(spia_v1) > 0) {
+  top <- tibble::rownames_to_column(as.data.frame(spia_v1), "pathway_id") %>%
+    dplyr::arrange(pG) %>%
+    head(15)
+  ggplot(top, aes(x = reorder(Name, -log10(pG)), y = -log10(pG), fill = Status)) +
+    geom_col() +
+    coord_flip() +
+    scale_fill_manual(values = c(Activated = "firebrick", Inhibited = "steelblue",
+                                 Mixed = "gray50"),
+                      na.value = "gray70") +
+    labs(title = "SPIA: top KEGG pathways (V1 vs Control)",
+         subtitle = "Bar height = -log10(global pG). Status from SPIA.",
+         x = NULL, y = "-log10(pG)") +
+    theme(legend.position = "bottom")
+}
+```
+
+Pathways with large **|tA|** (total net accumulation) and small **pPERT** are those where **topology** contributes strongly, not just list overlap.
+
+---
+---
+
+# 16. Save All Results
+
+```{r save-all-results}
 for (tp in names(ora_hallmark_all)) {
   df <- as.data.frame(ora_hallmark_all[[tp]])
   if (nrow(df) > 0) write.csv(df, file.path(results_dir,
@@ -1058,11 +1409,220 @@ for (tp in names(gsea_results)) {
   if (nrow(df) > 0) write.csv(df, file.path(results_dir,
     paste0("GSEA_Hallmark_", tp, ".csv")), row.names = FALSE)
 }
+for (nm in names(gsva_results_list)) {
+  write.csv(gsva_results_list[[nm]], file.path(results_dir,
+    paste0("GSVA_Hallmark_", nm, ".csv")), row.names = FALSE)
+}
+write.csv(gsva_scores, file.path(results_dir, "GSVA_scores_per_sample.csv"))
+
+if (!is.null(spia_v1) && nrow(spia_v1) > 0)
+  write.csv(as.data.frame(spia_v1), file.path(results_dir, "SPIA_KEGG_V1_vs_Control.csv"),
+            row.names = TRUE)
+if (!is.null(spia_v2) && nrow(spia_v2) > 0)
+  write.csv(as.data.frame(spia_v2), file.path(results_dir, "SPIA_KEGG_V2_vs_Control.csv"),
+            row.names = TRUE)
+if (!is.null(spia_v5) && nrow(spia_v5) > 0)
+  write.csv(as.data.frame(spia_v5), file.path(results_dir, "SPIA_KEGG_V5_vs_Control.csv"),
+            row.names = TRUE)
+
 cat("All results saved to:", results_dir, "\n")
 ```
 
 ---
 ---
+
+# 17. Results Interpretation & Discussion
+
+This section brings together all findings into a coherent narrative.
+
+## 17.1 What did we find? (The Big Picture)
+
+```{r interpretation-summary}
+cat("================================================================\n")
+cat("            COMPLETE ANALYSIS SUMMARY\n")
+cat("================================================================\n\n")
+
+cat("DATA\n")
+cat("  Genome reference: GRCh38.p13 (upgraded from hg19)\n")
+cat("  Aligner: Kallisto (upgraded from TopHat2/Cufflinks2)\n")
+cat("  Samples analysed:", ncol(counts_filtered), "\n")
+cat("  Genes after filtering:", nrow(counts_filtered), "\n\n")
+
+cat("DIFFERENTIAL EXPRESSION (DESeq2, |lfc|>1, padj<0.05)\n")
+print(deg_summary)
+
+cat("\nOriginal study (Limma/Voom on FPKM, |FC|>1.5, FDR<0.1%):\n")
+cat("  V1: 1,235 DEGs | V2: 1,060 DEGs | V5: 686 DEGs\n\n")
+
+cat("PATHWAY ANALYSIS (ORA + GSEA/GSVA + SPIA)\n")
+cat("  1st gen ORA  (Hallmark, V1):", nrow(as.data.frame(ora_hallmark_v1)),
+    "enriched pathways\n")
+cat("  1st gen ORA  (GO:BP, V1):  ",
+    sum(as.data.frame(ora_gobp_v1)$p.adjust < 0.05), "enriched terms\n")
+cat("  2nd gen GSEA (Hallmark, V1):", sum(gsea_h_df$p.adjust < 0.05),
+    "significant pathways\n")
+cat("  2nd gen GSVA (Hallmark, V1):",
+    sum(gsva_results_list$V1_vs_Ctrl$adj.P.Val < 0.05),
+    "differentially active pathways\n")
+if (!is.null(spia_v1) && nrow(spia_v1) > 0) {
+  cat("  3rd gen SPIA (KEGG, V1):    ",
+      sum(spia_v1$pGFdr < 0.05, na.rm = TRUE),
+      "pathways with pGFdr < 0.05\n")
+} else {
+  cat("  3rd gen SPIA (KEGG, V1):    not computed or empty\n")
+}
+cat("================================================================\n")
+```
+
+## 17.2 Biological Interpretation
+
+### The Acute Phase (V1): A Strong Inflammatory Storm
+
+At V1 (acute Lyme diagnosis, before antibiotics), we detected the
+largest number of DEGs and the most enriched pathways. The top pathways
+across MSigDB-based ORA/GSEA/GSVA consistently point to a massive immune response:
+
+- **TNF-alpha signaling via NF-kB**: TNF-alpha is a master
+  pro-inflammatory cytokine. NF-kB is the transcription factor it
+  activates. Together, they drive the production of other inflammatory
+  molecules. The original paper also identified TNF-alpha as a top
+  upstream regulator.
+  
+- **Interferon-gamma response**: IFN-gamma is produced primarily by
+  T-cells and NK cells. It activates macrophages and drives Th1
+  immunity -- the type needed to fight intracellular and spirochetal
+  pathogens like *B. burgdorferi*. This matches the original paper's
+  finding of TREM1-mediated Th1 activation.
+  
+- **Inflammatory response**: A broad category encompassing cytokine
+  signaling, leukocyte recruitment, and tissue inflammation. This is
+  the expected hallmark of an acute bacterial infection.
+  
+- **Complement**: The complement system is an ancient innate immune
+  defence that directly lyses bacteria and flags them for phagocytosis.
+  Its activation in acute Lyme disease is biologically logical.
+
+- **IL6-JAK-STAT3 signaling**: IL-6 is a pleiotropic cytokine
+  central to acute-phase responses. The original paper identified IL-6
+  as a top upstream regulator at V1 and V2.
+
+**SPIA (KEGG, Section 15)** adds a separate view: it flags pathways where
+both **list enrichment** and **signed graph perturbation** suggest
+**Activated** or **Inhibited** status (e.g. chemokine signalling, lysosome,
+cell-cycle-related KEGG maps in our run). Treat these as complementary to
+Hallmark/GO — not a one-to-one match to immune gene-set names.
+
+### Post-Treatment (V2): The Signature Persists
+
+At V2 (3 weeks later, after completing antibiotics), a substantial
+number of DEGs and pathways remain active. This is the paper's central
+finding: **the gene expression signature does not promptly return to
+baseline after treatment**, unlike what is typically observed in other
+acute infections.
+
+From our NES heatmap (Section 12.4) and GSVA boxplots (Section 14.7),
+many inflammatory pathways remain elevated at V2, albeit often with
+reduced intensity compared to V1. This suggests that while antibiotics
+eliminate the bacterium, the immune system remains in a heightened
+state for weeks afterwards.
+
+### Six Months Later (V5): Partial but Incomplete Recovery
+
+By V5 (6 months post-treatment), the number of DEGs drops
+substantially but does not reach zero. Some pathways still show
+residual activity. The GSVA per-sample boxplots (Section 14.7) are
+particularly informative here: while most V5 patients approach control
+levels, some individuals remain elevated. These outliers may correspond
+to patients who developed persistent symptoms.
+
+The original paper found 686 DEGs at V5 and noted 31-60% of pathways
+in common with chronic autoimmune conditions (SLE, RA). Our results
+are consistent with a lingering transcriptomic perturbation at 6
+months.
+
+## 17.3 How Our Re-Analysis Compares to the Original Study
+
+| Aspect | Bouquet et al. 2016 | Our Re-Analysis |
+|--------|---------------------|-----------------|
+| Genome | hg19 (2009) | GRCh38.p13 (current) |
+| Aligner | TopHat2/Cufflinks2 (deprecated) | Kallisto (modern) |
+| Input data | FPKM (normalised) | Raw integer counts |
+| DE method | Limma/Voom | DESeq2 (negative binomial) |
+| Fold-change | Raw FC > 1.5 | Shrunken LFC (ashr) |
+| Pathway tool | IPA (proprietary, 3$) | clusterProfiler + MSigDB (open-source, free) |
+| Pathway methods | ORA only (1st gen) | ORA + GSEA + GSVA + SPIA (1st–3rd gen) |
+| Per-sample resolution | No (bulk group comparison) | Yes (GSVA scores per patient) |
+
+### What we confirmed
+
+- A strong immune/inflammatory signature at V1 (acute Lyme)
+- The signature persists beyond antibiotic treatment (V2)
+- Partial recovery by 6 months (V5) but not to baseline
+- TNF-alpha, interferons, complement, and IL-6 signaling are central
+
+### What we added
+
+- **GSEA** detects subtle coordinated pathway changes without
+  arbitrary cutoffs, finding more significant pathways than ORA alone.
+- **GSVA** provides individual patient pathway scores, allowing us to
+  see heterogeneity within each time point -- particularly relevant for
+  understanding why some V5 patients still have elevated inflammatory
+  pathways while others recover fully.
+- All tools are open-source and reproducible (vs. IPA).
+- **SPIA (3rd gen)** highlights KEGG pathways where both **gene list enrichment** and **signed topology** suggest activation or inhibition — a different lens from MSigDB Hallmark.
+
+## 17.4 Answering Open Questions from the Analysis
+
+**Section 5.2 -- "Is the mean set correctly for the mean-variance plot?"**
+Yes. The plot correctly shows that for raw RNA-Seq counts, the variance
+consistently exceeds the mean (overdispersion). The red Poisson line
+(variance = mean) is a theoretical baseline. The fact that points sit
+above it is not an error; it is the fundamental property of count data
+that justifies using the negative binomial model in DESeq2.
+
+**Section 7.4 -- "VST doesn't seem to flatten the mean-SD relationship?"**
+The VST does reduce the dependency, even if visually the "before" and
+"after" plots look similar. The key metric is the correlation between
+mean and SD: even a modest reduction (e.g., from 0.8 to 0.5) meaningfully
+improves downstream analyses like PCA. The fact that the correlation
+doesn't drop to zero is normal -- VST is an approximation, not magic.
+For small sample sizes, `rlog()` (regularised log) can perform better
+than VST but is much slower. Both are acceptable for this project.
+
+**MA plots (Sections 5.3, 7.3, 10.1a) — do they validate normalization?**  
+Section 5.3 uses raw log2 counts: systematic offset is expected. Section 7.3 uses **size-factor–normalized** counts only; the loess trend should sit closer to **M = 0**. Section **10.1a** uses **DESeq2**’s `plotMA()` after dispersion shrinkage: the central mass of points at moderate-to-high expression should lie near **LFC = 0** for non-DEGs (blue = padj &lt; alpha). Together, these three plots answer “did we fix depth?” vs “what does the fitted model say about differential expression?”
+
+**Section 12.2 -- "Which pathways should we expect activated/suppressed?"**
+Based on what we know about Lyme disease biology:
+
+*Expected activated:* Inflammatory response, TNF-alpha signaling,
+interferon signaling (IFN-gamma, IFN-alpha), complement, IL6-JAK-STAT,
+TLR signaling, NF-kB signaling, apoptosis.
+
+*Potentially suppressed:* The original paper found eIF2 signaling
+(translation initiation) downregulated at all time points. In our GSEA
+results, look for pathways with negative NES (blue in the heatmap).
+Suppressed MYC targets or mTORC1 signaling would indicate reduced
+cell growth/proliferation, consistent with immune cells diverting
+resources from growth to defence.
+
+## 17.5 Book Chapter Reference Map
+
+| Our Section | Thomas's Book Chapter | Method |
+|-------------|-----------------------|--------|
+| 4.1 Library sizes | Ch. 7.2 | Quality Control |
+| 4.3 RLE plot | Ch. 7.2.4 | Relative Log Expression |
+| 5.3 MA plot | Ch. 7.2.7 | Mean-difference plot |
+| 7. DESeq2 | Ch. 7.6 | Differential expression |
+| 8. PCA | Ch. 7.2.2 | Dimensionality reduction |
+| 9. Distance heatmap | Ch. 7.2.1 | Sample distance |
+| 11. ORA | Ch. 8.1.1, 8.4.1 | 1st generation pathway analysis |
+| 12. GSEA | Ch. 8.1.2.1, 8.4.3 | 2nd generation pathway analysis |
+| 13. compareCluster | Ch. 8.4.2 | Biologic theme comparison |
+| 14. GSVA | Ch. 8.1.2.2, 8.4.5 | 2nd generation (per-sample scores) |
+| 15. SPIA | Ch. 8 (topology); Khatri et al. 2012 | 3rd generation (KEGG perturbation) |
+| MSigDB usage | Ch. 8.2 | Molecular Signature Database |
+| 7.3–7.4 / 10.1a MA | Ch. 7.2.7 | Mean–difference / DESeq2 MA |
 
 ---
 

@@ -1,130 +1,113 @@
 # Big_data
-Last updated: 28/03/2026 at 15:30
 
-## Study Summary: Longitudinal Transcriptome Analysis in Acute Lyme Disease
-This project analyzes a longitudinal transcriptome study of 29 Lyme disease patients and 13 matched controls, collected at multiple time points (acute phase, 1 month, and 6 months post-treatment). The study investigates the molecular basis of acute Lyme disease and the development of post-treatment symptoms. 
+Last updated: 10/04/2026
 
-### Their Analytical Pipeline (What They Did):
-1. *Wet lab stuff*
-2. *Alignment*: TopHat 2 (Bowtie 2) -> hg19 human genome (_maybe outdated ref?_)
-3. *Quantification*: Cufflinks 2 -> FPKM values for 25,278 genes (_FPKM def. outdated, according to LLMs, and mathematically "flawed"_)
-4. Differential expression: Voom transformation -> Limma linear modeling -> DEGs (fold change (FC) > 1.5, p < 0.05, false discovery rate (FDR) < 0.1%)
-5. *Pathway analysis*: IPA (_which is an paid commercial tool_)
-6. *Comparisons*: Cross-referenced with 15 other transcriptome datasets (microarray + RNA-seq) from other infections and chronic diseases
+## Study summary
 
-#### **Analysis Techniques:** 
-Differential gene expression analysis, pathway enrichment analysis, and comparison with immune-mediated chronic diseases were performed to identify key molecular signatures and pathways associated with Lyme disease and its long-term effects.
+Longitudinal transcriptome re-analysis of **Bouquet et al. 2016 (GSE63085)** — acute Lyme disease vs healthy controls at three visits (V1 acute, V2 post-treatment, V5 six months) — using **raw counts**, **DESeq2**, and **open-source pathway methods** (ORA, GSEA, GSVA, SPIA). See `lyme_dge_analysis.Rmd` / knitted `lyme_dge_analysis.html` for the full report.
 
-### Study Key Findings:
-- **Sustained Signature:** A differential gene expression signature of Lyme disease persists for at least 3 weeks following the acute phase.
-- **Early Acute Phase:** Characterized by marked upregulation of Toll-like receptor (TLR) signaling but lacks activation of inflammatory T-cell apoptotic and B-cell developmental pathways seen in other acute infections.
-- **Long-term Similarities:** Six months post-treatment, Lyme disease patients shared 31 to 60% of their pathways with immune-mediated chronic diseases (like rheumatoid arthritis).
-- **Persistent Symptoms:** At 6 months post-treatment, no specific differential gene expression signature was observed between patients who recovered versus those with persistent symptoms.
-- **Clinical Relevance:** The sustained signature suggests a potential panel of human host-based biomarkers could aid in sensitive clinical diagnosis prior to a detectable antibody response.
+---
 
+## Project structure
 
-## Our thoughts and findings:
-- Interesting citations:
-   - “The average duration of acute illness, defined as the time from onset of EM rash and/or influenza-like symptoms to study enrollment and initiation of doxycycline therapy, was significantly longer in patients developing persistent symptoms (9.7 days for non-PTLDS and 19.3 days for PTLDS) than in patients with resolved illness (5.2 days)”
+| Path | Role |
+|------|------|
+| `lyme_dge_analysis.Rmd` | Main analysis notebook (source of truth for code and narrative) |
+| `lyme_dge_analysis.html` | Knitted report (tables, figures, interpretation) |
+| `sample_annotations.csv` | Sample metadata (GSM, patient, visit, group) |
+| `Data/` | Input data: raw counts matrix (`GSE63085_raw_counts_GRCh38.p13_NCBI.tsv.gz`), gene annotation (`Human.GRCh38.p13.annot.tsv.gz`) |
+| `results/` | Exported CSVs: DEG tables, ORA/GSEA/GSVA/SPIA outputs |
+| `plots/` | Optional saved plots (if written from chunks) |
+| `lyme_dge_analysis_cache/` | knitr chunk cache (speeds re-knitting; safe to delete to force full rerun) |
 
-- 
-- 
+---
 
+## Analysis steps (pipeline)
 
-## Areas for improvement:
+1. **Load data** — Align sample table to count matrix columns; engineer `group` / `visit` factors.
+2. **QC & EDA** — Library sizes, RLE, densities, mean–variance, **MA (pre-normalisation)**.
+3. **Pre-filtering** — Remove genes with consistently low counts (DESeq2-style filter).
+4. **DESeq2** — `DESeqDataSet` with `design = ~ group`; **size factors** (median of ratios); **VST** for PCA/heatmaps; **MA after size factors** (normalized counts).
+5. **Exploratory structure** — PCA (incl. patient trajectories), sample distance heatmap, top-variable genes.
+6. **Differential expression** — `DESeq()`; contrasts V1/V2/V5 vs Control; **lfcShrink(type = "ashr")**; **DESeq2 `plotMA()`** for each contrast.
+7. **Pathway analysis (generations)**  
+   - **1st:** ORA (MSigDB Hallmark + GO:BP) via `clusterProfiler::enricher`  
+   - **2nd:** GSEA (ranked genes); **GSVA** + limma on pathway scores  
+   - **3rd:** **SPIA** on KEGG topology (perturbation + over-representation)  
+8. **Theme comparison** — `compareCluster` across time points (Hallmark).
+9. **Export** — CSVs under `results/`; interpretation section in the HTML ties methods to biology.
 
-1. **Batch effects/Biological confounding variables (_source: Abed_):**
+---
 
-Not sure if this is a batch effect, or a _biological confounding variable_, but the authors said that there's no batch effect by PCA of the 13 controls alone and by finding zero DEGs between winter/spring controls. But isn't comparing only 8 vs 5 controls extremely  underpowered? For me, I remember seasons were a big factor in my response to the infection. The seasonal confound was not properly addressed in the study. Controls were sampled mostly in winter (61.5%) and patients were sampled mostly in summer (82.8%). Improvement could be that we include season as a covariate in the DESeq2 model to account for batch effects.
+## Key outputs
 
-2. **Open-source pathway analysis (clusterProfiler + MSigDB) instead of IPA (_Source: Thomas_)**:
+| Output | Description |
+|--------|-------------|
+| `results/DEG_*_vs_Control.csv` | Per-contrast DESeq2 results with symbols and annotation |
+| `results/ORA_Hallmark_*.csv` | Over-representation of Hallmark gene sets |
+| `results/GSEA_Hallmark_*.csv` | GSEA statistics (NES, p values) per contrast |
+| `results/GSVA_Hallmark_*.csv` / `GSVA_scores_per_sample.csv` | Pathway scores and limma tests on GSVA |
+| `results/SPIA_KEGG_*_vs_Control.csv` | SPIA KEGG pathway table (pNDE, pPERT, pG, Status) |
+| `lyme_dge_analysis.html` | Full narrative, all figures, session info |
 
-IPA is expensive. Thomas's pipeline uses clusterProfiler with MSigDB (Molecular Signatures Database) which is reproducible and free. we can do Gene Ontology (GO) enrichment, KEGG pathway analysis, and GSEA (Gene Set Enrichment Analysis) which tests ALL genes (not just the significant ones), without random thresholds like in the study.
+---
 
-3. **Small subgroup sizes for PTLDS comparison (_source: Abed_)**:
+## Study context (original paper)
 
-only 4 ptlds patients vs 15 resolved. does finding 0 DEGs "make sense" considering the low power (62% as they reported)? Should we just acknowledge this limitation clearly in the presentation?
+### Their analytical pipeline (summary)
 
-4. **No gene set enrichment analysis (GSEA) (_source: Thomas)_**
+1. Alignment: TopHat 2 → hg19  
+2. Quantification: Cufflinks 2 → FPKM  
+3. Differential expression: Voom → Limma (FC > 1.5, FDR < 0.1%)  
+4. Pathway analysis: IPA (commercial)  
+5. Comparisons with other infection/chronic disease datasets  
 
-the study only did over (/under)-representation analysis (ORA) via IPA, which only looks at genes above the significance cutoff. We should definitely use GSEA using clusterProfiler, beacuse it uses all genes detects more changes in pathways that ORA misses.
+### Study key findings (short)
 
-5. **Starting from raw counts, not FPKM (_source: LLMs_)**
+- Sustained differential expression after the acute phase  
+- Acute phase TLR-heavy signature; partial overlap with chronic immune disease pathways at six months  
+- No simple residual DEG signature for PTLDS vs resolved at six months (with caveats about power)  
 
-The original used FPKM from Cufflinks, which normalizes by gene length and library size. But FPKM has known issues: it's not comparable across samples because it assumes the same total mRNA per cell. DESeq2's median-of-ratios normalization (size factors) is statistically superior for differential expression.
+---
 
-6. **Statistical Method: DESeq2 instead of Limma/Voom (_source: Thomas_)**
+## Our notes and improvement themes
 
-study used Limma/Voom which which was according to llms originally designed for microarrays.
-DESeq2 directly models count data, with built-in shrinkage estimation of dispersion and log2 fold changes. Better suited for RNA-Seq, especially with small sample sizes (like n=4 for PTLDS). DESeq2 also has Cook's distance for automatic outlier detection per gene.
+- Season / batch as potential confounders; original controls vs cases differ in sampling season.  
+- Replace IPA with **clusterProfiler + MSigDB**; add **GSEA** and **GSVA**; use **DESeq2** on counts.  
+- Raw counts and **GRCh38.p13** re-quantification (Thomas) vs original FPKM/hg19.  
+- Paired/longitudinal design could be modeled more explicitly (e.g. patient effect) in a follow-up.  
 
+---
 
-7. **Paired/longitudinal design not fully exploited (_source: LLM_)**
+## Data files
 
-The same 29 patients were measured at 3 time points, creating a repeated measures design. The original study compared each time point vs. controls independently.
-Improvement: Use DESeq2's ability to model paired samples by including patient as a blocking factor. This accounts for individual variation and increases statistical power.
+| File | Description |
+|------|-------------|
+| `Data/GSE63085_raw_counts_GRCh38.p13_NCBI.tsv.gz` | Raw integer counts (Entrez gene IDs × samples) |
+| `Data/Human.GRCh38.p13.annot.tsv.gz` | Gene annotation (symbol, type, GO, etc.) |
+| `sample_annotations.csv` | Sample metadata; **22** GSMs in the table are absent from the count matrix (Thomas’s QC / pipeline). |
 
-8. **Arbitrary fold-change and FDR cutoffs _(sourece: LLM)_**
+---
 
-The original used FC > 1.5 and FDR < 0.1%. These are arbitrary.
-Improvement: Use DESeq2's lfcShrink() for shrunken log2 fold change estimates (more reliable for genes with low counts), and explore results at multiple thresholds.
+## Checked steps (progress)
 
-9. **Outdated alignment pipeline (_source: LLM, confirmed by Thomas_)**
+- [x] Sample annotation and alignment to counts  
+- [x] EDA and DESeq2 DE (V1, V2, V5 vs Control)  
+- [x] ORA + GSEA + GSVA  
+- [x] SPIA (3rd generation, KEGG)  
+- [ ] Final presentation (course deliverable)  
 
-TopHat/Cufflinks is now deprecated. Modern pipelines use STAR or HISAT2 for alignment and featureCounts or Salmon for quantification.
-Thomas re-aligned the raw FASTQ data to **GRCh38.p13** (vs original hg19) using a modern pipeline and produced raw integer counts. This addresses both the outdated aligner and the FPKM issue. *(Ask Thomas which aligner/quantifier he used for the citation.)*
+### Example headline results (from a full knit; re-run may differ slightly)
 
-10. **Updated genome reference: GRCh38.p13 vs hg19 (_source: Thomas_)**
+- Many thousands of DEGs at padj &lt; 0.05 (threshold-dependent for \|LFC\| &gt; 1)  
+- Hallmark ORA/GSEA: strong inflammatory / IFN / TNF signatures at V1  
+- GSVA: per-sample pathway scores + limma contrasts  
+- SPIA: KEGG-level **Activated/Inhibited** calls with topology-aware **pG**  
 
-The original study used hg19 (GRCh37, released 2009). Thomas's re-alignment uses GRCh38.p13, the current human reference, with corrected sequences, better gene models, and hundreds of gap fixes.
+---
 
+## References
 
-## Our Data
-
-| File | Description | Dimensions |
-|------|-------------|------------|
-| `Data/GSE63085_raw_counts_GRCh38.p13_NCBI.tsv.gz` | Raw integer counts (GRCh38.p13, NCBI Entrez Gene IDs) | 39,376 genes x 75 samples |
-| `Data/Human.GRCh38.p13.annot.tsv.gz` | Gene annotation (Symbol, Description, GeneType, Ensembl, GO terms) | 39,376 genes x 17 columns |
-| `sample_annotations.csv` | Sample metadata (Run, GSM, patient, disease state, time point) | 97 samples (75 in counts) |
-
-22 samples from the annotation are not in the counts matrix (excluded during Thomas's quality filtering in the modern alignment pipeline).
-
-
-## Our Improved Pipeline
-
-```
-Raw counts (GRCh38.p13, from Thomas)
-  |-> DESeq2 (negative binomial model, size factor normalization)
-      |-> Pre-filtering (remove low-count genes)
-      |-> Differential expression (V1/V2/V5 vs Control)
-      |-> lfcShrink (shrunken log2 fold changes)
-  |-> Biology context (following Mohrkeg Ch. 8):
-      |-> 1st gen: ORA via clusterProfiler + MSigDB
-      |-> 2nd gen: GSEA via clusterProfiler (NEW vs original study)
-      |-> 2nd gen: GSVA via GSVA package (NEW vs original study)
-```
-
-**Reference**: Mohrkeg T. *Beginner's Handbook of -Omics Data Analysis*,
-Chapter 8: Downstream Analysis of Expression Data.
-
-
-### Checked Steps:
-- [x] Sample data annotation
-- [x] Go through the paper and understand the methods used for data analysis
-- [x] Get the data from Thomas (raw counts GRCh38.p13 + gene annotation)
-- [x] Understand Thomas's Chapter 8 (three generations of pathway analysis)
-- [x] Full EDA on the data (lyme_dge_analysis.Rmd)
-- [x] DESeq2 differential expression (V1, V2, V5 vs Control)
-- [x] Downstream: ORA with clusterProfiler + MSigDB Hallmark + GO (1st generation)
-- [x] Downstream: GSEA with clusterProfiler + MSigDB Hallmark (2nd generation)
-- [x] Downstream: Biologic theme comparison across time points (Ch. 8.4.2)
-- [ ] Downstream: GSVA transformation + analysis (2nd generation, optional extension)
-- [ ] Final presentation / report
-
-### Key Results (from pipeline run):
-- **V1 (acute):** 7,340 DEGs (padj<0.05); ~1,020 with |lfc|>1
-- **V2 (post-treatment):** 4,408 DEGs
-- **V5 (6 months):** 1,314 DEGs
-- **ORA Hallmark (V1):** 9 enriched pathways (inflammatory response, TNFa/NFkB, IFN-gamma, G2M, complement...)
-- **ORA GO (V1):** 524 enriched terms
-- **GSEA Hallmark (V1):** 36 of 50 pathways significant (top: IFN-gamma, TNFa, inflammatory response)
+- Bouquet J et al. *mBio* 2016; 7(1):e00100-16.  
+- Mohrke T. *Beginner’s Handbook of -Omics Data Analysis* (Ch. 7–8).  
+- DESeq2, clusterProfiler, GSVA, SPIA documentation and vignettes.  
