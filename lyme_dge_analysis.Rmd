@@ -1438,30 +1438,25 @@ This section brings together all findings into a coherent narrative.
 ## 17.1 What did we find? (The Big Picture)
 
 ```{r interpretation-summary}
-cat("================================================================\n")
-cat("            COMPLETE ANALYSIS SUMMARY\n")
-cat("================================================================\n\n")
+cat("================================================================\n","            COMPLETE ANALYSIS SUMMARY\n","================================================================\n\n")
 
-cat("DATA\n")
-cat("  Genome reference: GRCh38.p13 (upgraded from hg19)\n")
-cat("  Aligner: Kallisto (upgraded from TopHat2/Cufflinks2)\n")
-cat("  Samples analysed:", ncol(counts_filtered), "\n")
-cat("  Genes after filtering:", nrow(counts_filtered), "\n\n")
-
-cat("DIFFERENTIAL EXPRESSION (DESeq2, |lfc|>1, padj<0.05)\n")
+cat("DATA\n","  Genome reference: GRCh38.p13 (upgraded from hg19)\n"
+,"  Aligner: Kallisto (upgraded from TopHat2/Cufflinks2)\n",
+"  Samples analysed:", ncol(counts_filtered), "\n",
+"  Genes after filtering:", nrow(counts_filtered), "\n\n",
+"DIFFERENTIAL EXPRESSION (DESeq2, |lfc|>1, padj<0.05)\n")
 print(deg_summary)
 
-cat("\nOriginal study (Limma/Voom on FPKM, |FC|>1.5, FDR<0.1%):\n")
-cat("  V1: 1,235 DEGs | V2: 1,060 DEGs | V5: 686 DEGs\n\n")
-
-cat("PATHWAY ANALYSIS (ORA + GSEA/GSVA + SPIA)\n")
-cat("  1st gen ORA  (Hallmark, V1):", nrow(as.data.frame(ora_hallmark_v1)),
-    "enriched pathways\n")
-cat("  1st gen ORA  (GO:BP, V1):  ",
+cat("\nOriginal study (Limma/Voom on FPKM, |FC|>1.5, FDR<0.1%):\n",
+"  V1: 1,235 DEGs | V2: 1,060 DEGs | V5: 686 DEGs\n\n",
+,"PATHWAY ANALYSIS (ORA + GSEA/GSVA + SPIA)\n",
+"  1st gen ORA  (Hallmark, V1):", nrow(as.data.frame(ora_hallmark_v1)),
+    "enriched pathways\n",
+"  1st gen ORA  (GO:BP, V1):  ",
     sum(as.data.frame(ora_gobp_v1)$p.adjust < 0.05), "enriched terms\n")
 cat("  2nd gen GSEA (Hallmark, V1):", sum(gsea_h_df$p.adjust < 0.05),
-    "significant pathways\n")
-cat("  2nd gen GSVA (Hallmark, V1):",
+    "significant pathways\n",
+"  2nd gen GSVA (Hallmark, V1):",
     sum(gsva_results_list$V1_vs_Ctrl$adj.P.Val < 0.05),
     "differentially active pathways\n")
 if (!is.null(spia_v1) && nrow(spia_v1) > 0) {
@@ -1471,7 +1466,6 @@ if (!is.null(spia_v1) && nrow(spia_v1) > 0) {
 } else {
   cat("  3rd gen SPIA (KEGG, V1):    not computed or empty\n")
 }
-cat("================================================================\n")
 ```
 
 ## 17.2 Biological Interpretation
