@@ -15,6 +15,55 @@ output:
     fig_height: 7
 ---
 
+
+# Introduction
+
+In this notebook, we re-analyse the publicly available RNA-seq dataset GSE63085 from Bouquet et al. 2016, which profiled peripheral blood gene expression in Lyme disease patients at multiple time points (acute infection, post-treatment, and 6-month follow-up) compared to healthy controls. The original study used: 
+
+* outdated hg19 reference genome, 
+* TopHat2/Cufflinks2 for alignment and quantification, and 
+* Limma/Voom for differential expression analysis, with pathway enrichment via the proprietary IPA tool.
+
+
+Lyme disease is a tick-borne infection caused by *Borrelia burgdorferi*. It can lead to a range of symptoms, from acute flu-like illness to chronic fatigue and joint pain. Understanding the host immune response at the transcriptomic level can provide insights into disease mechanisms and potential therapeutic targets.
+
+
+
+# Summary of the re-analysis Implementation
+
+## How Our Re-Analysis Compares to the Original Study
+
+| Aspect | Bouquet et al. 2016 | Our Re-Analysis |
+|--------|---------------------|-----------------|
+| Genome | hg19 (2009) | GRCh38.p13 (current) |
+| Aligner | TopHat2/Cufflinks2 (deprecated) | Kallisto (modern) |
+| Input data | FPKM (normalised) | Raw integer counts |
+| DE method | Limma/Voom | DESeq2 (negative binomial) |
+| Fold-change | Raw FC > 1.5 | Shrunken LFC (ashr) |
+| Pathway tool | IPA (proprietary, 3$) | clusterProfiler + MSigDB (open-source, free) |
+| Pathway methods | ORA only (1st gen) | ORA + GSEA + GSVA + SPIA (1st–3rd gen) |
+| Per-sample resolution | No (bulk group comparison) | Yes (GSVA scores per patient) |
+
+### What we confirmed
+
+- A strong immune/inflammatory signature at V1 (acute Lyme)
+- The signature persists beyond antibiotic treatment (V2)
+- Partial recovery by 6 months (V5) but not to baseline
+- TNF-alpha, interferons, complement, and IL-6 signaling are central
+
+### What we added
+
+- **GSEA** detects subtle coordinated pathway changes without
+  arbitrary cutoffs, finding more significant pathways than ORA alone.
+- **GSVA** provides individual patient pathway scores, allowing us to
+  see heterogeneity within each time point -- particularly relevant for
+  understanding why some V5 patients still have elevated inflammatory
+  pathways while others recover fully.
+- All tools are open-source and reproducible (vs. IPA).
+- **SPIA (3rd gen)** highlights KEGG pathways where both **gene list enrichment** and **signed topology** suggest activation or inhibition — a different lens from MSigDB Hallmark.
+
+
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   echo = TRUE, warning = FALSE, message = FALSE,
@@ -1438,8 +1487,6 @@ This section brings together all findings into a coherent narrative.
 ## 17.1 What did we find? (The Big Picture)
 
 ```{r interpretation-summary}
-cat("================================================================\n","            COMPLETE ANALYSIS SUMMARY\n","================================================================\n\n")
-
 cat("DATA\n","  Genome reference: GRCh38.p13 (upgraded from hg19)\n"
 ,"  Aligner: Kallisto (upgraded from TopHat2/Cufflinks2)\n",
 "  Samples analysed:", ncol(counts_filtered), "\n",
@@ -1449,7 +1496,7 @@ print(deg_summary)
 
 cat("\nOriginal study (Limma/Voom on FPKM, |FC|>1.5, FDR<0.1%):\n",
 "  V1: 1,235 DEGs | V2: 1,060 DEGs | V5: 686 DEGs\n\n",
-,"PATHWAY ANALYSIS (ORA + GSEA/GSVA + SPIA)\n",
+"PATHWAY ANALYSIS (ORA + GSEA/GSVA + SPIA)\n",
 "  1st gen ORA  (Hallmark, V1):", nrow(as.data.frame(ora_hallmark_v1)),
     "enriched pathways\n",
 "  1st gen ORA  (GO:BP, V1):  ",
@@ -1534,38 +1581,7 @@ in common with chronic autoimmune conditions (SLE, RA). Our results
 are consistent with a lingering transcriptomic perturbation at 6
 months.
 
-## 17.3 How Our Re-Analysis Compares to the Original Study
-
-| Aspect | Bouquet et al. 2016 | Our Re-Analysis |
-|--------|---------------------|-----------------|
-| Genome | hg19 (2009) | GRCh38.p13 (current) |
-| Aligner | TopHat2/Cufflinks2 (deprecated) | Kallisto (modern) |
-| Input data | FPKM (normalised) | Raw integer counts |
-| DE method | Limma/Voom | DESeq2 (negative binomial) |
-| Fold-change | Raw FC > 1.5 | Shrunken LFC (ashr) |
-| Pathway tool | IPA (proprietary, 3$) | clusterProfiler + MSigDB (open-source, free) |
-| Pathway methods | ORA only (1st gen) | ORA + GSEA + GSVA + SPIA (1st–3rd gen) |
-| Per-sample resolution | No (bulk group comparison) | Yes (GSVA scores per patient) |
-
-### What we confirmed
-
-- A strong immune/inflammatory signature at V1 (acute Lyme)
-- The signature persists beyond antibiotic treatment (V2)
-- Partial recovery by 6 months (V5) but not to baseline
-- TNF-alpha, interferons, complement, and IL-6 signaling are central
-
-### What we added
-
-- **GSEA** detects subtle coordinated pathway changes without
-  arbitrary cutoffs, finding more significant pathways than ORA alone.
-- **GSVA** provides individual patient pathway scores, allowing us to
-  see heterogeneity within each time point -- particularly relevant for
-  understanding why some V5 patients still have elevated inflammatory
-  pathways while others recover fully.
-- All tools are open-source and reproducible (vs. IPA).
-- **SPIA (3rd gen)** highlights KEGG pathways where both **gene list enrichment** and **signed topology** suggest activation or inhibition — a different lens from MSigDB Hallmark.
-
-## 17.4 Answering Open Questions from the Analysis
+## 17.3 Answering Open Questions from the Analysis
 
 **Section 5.2 -- "Is the mean set correctly for the mean-variance plot?"**
 Yes. The plot correctly shows that for raw RNA-Seq counts, the variance
@@ -1600,7 +1616,7 @@ Suppressed MYC targets or mTORC1 signaling would indicate reduced
 cell growth/proliferation, consistent with immune cells diverting
 resources from growth to defence.
 
-## 17.5 Book Chapter Reference Map
+## 17.4 Book Chapter Reference Map
 
 | Our Section | Thomas's Book Chapter | Method |
 |-------------|-----------------------|--------|
