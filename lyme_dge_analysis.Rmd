@@ -1226,20 +1226,32 @@ print(head(ora_gobp_v1_df %>% dplyr::select(Description, p.adjust, Count), 5))
 
 ```{r ora-gobp-dotplot, fig.height=7}
 if (nrow(ora_gobp_v1_df) > 0) {
-  # truncate long GO:BP names so the dotplot stays readable
+  # Use the unique ID (gs_name) for the Y-axis instead of the description
   ora_gobp_v1_top <- ora_gobp_v1
   ora_gobp_v1_top@result <- ora_gobp_v1_top@result %>%
     dplyr::arrange(p.adjust) %>%
     head(15) %>%
     dplyr::mutate(
-      Description = ifelse(nchar(Description) > 55,
-                           paste0(substr(Description, 1, 52), "..."),
-                           Description)
+      # Overwrite Description with ID so dotplot uses the unique name
+      Description = ID
     )
 
-  dotplot(ora_gobp_v1_top, showCategory = 15) +
+  p <- dotplot(ora_gobp_v1_top, showCategory = 15) +
     ggtitle("ORA: Top 15 GO Biological Process Terms (V1)") +
-    theme(axis.text.y = element_text(size = 9))
+    theme(axis.text.y = element_text(size = 7)) # slightly smaller font for long names
+  
+  print(p)
+}
+```
+
+```{r ora-gobp-table, echo=FALSE, results='asis'}
+if (nrow(ora_gobp_v1_df) > 0) {
+  cat("### Top 15 GO Biological Process Terms\n\n")
+  top_15_table <- ora_gobp_v1_df %>%
+    head(15) %>%
+    dplyr::select(Name = ID, Description, p.adjust, Count)
+  
+  print(knitr::kable(top_15_table, row.names = FALSE))
 }
 ```
 
