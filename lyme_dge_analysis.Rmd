@@ -1199,6 +1199,11 @@ Their counterparts — **anti-inflammatory cytokines** — include IL-10, TGF-β
 
 ## 11.3 ORA: GO Biological Process (V1)
 
+GO:BP returns *hundreds* of significant terms because the ontology contains many overlapping descriptions of the same biology (e.g. dozens of "regulation of cytokine production" sub-terms). We therefore:
+
+1. **Save the full result** to `results/ORA_GOBP_V1.csv` so the complete enrichment is reproducible and reviewable.
+2. **Plot only the top 15** by adjusted p-value (with truncated labels) so the figure is readable.
+
 ```{r ora-gobp-v1}
 ora_gobp_v1 <- enricher(
   gene = sig_sym_v1, universe = univ_sym,
@@ -1206,15 +1211,39 @@ ora_gobp_v1 <- enricher(
   pvalueCutoff = 0.05, pAdjustMethod = "BH", qvalueCutoff = 1
 )
 
-cat("Significant GO:BP terms:", nrow(as.data.frame(ora_gobp_v1)), "\n")
+ora_gobp_v1_df <- as.data.frame(ora_gobp_v1) %>%
+  dplyr::arrange(p.adjust)
+cat("Significant GO:BP terms:", nrow(ora_gobp_v1_df),
+    "  (full table saved to results/ORA_GOBP_V1.csv)\n")
+
+write.csv(ora_gobp_v1_df,
+          file.path(results_dir, "ORA_GOBP_V1.csv"),
+          row.names = FALSE)
+
+cat("\nPreview — top 5 GO:BP terms:\n")
+print(head(ora_gobp_v1_df %>% dplyr::select(Description, p.adjust, Count), 5))
 ```
 
-```{r ora-gobp-dotplot, fig.height=9}
-if (nrow(as.data.frame(ora_gobp_v1)) > 0) {
-  dotplot(ora_gobp_v1, showCategory = 20) +
-    ggtitle("ORA: Top GO Biological Process Terms (V1)")
+```{r ora-gobp-dotplot, fig.height=7}
+if (nrow(ora_gobp_v1_df) > 0) {
+  # truncate long GO:BP names so the dotplot stays readable
+  ora_gobp_v1_top <- ora_gobp_v1
+  ora_gobp_v1_top@result <- ora_gobp_v1_top@result %>%
+    dplyr::arrange(p.adjust) %>%
+    head(15) %>%
+    dplyr::mutate(
+      Description = ifelse(nchar(Description) > 55,
+                           paste0(substr(Description, 1, 52), "..."),
+                           Description)
+    )
+
+  dotplot(ora_gobp_v1_top, showCategory = 15) +
+    ggtitle("ORA: Top 15 GO Biological Process Terms (V1)") +
+    theme(axis.text.y = element_text(size = 9))
 }
 ```
+
+The plot now shows only the top 15 by `p.adjust`. The remaining significant terms (~400+) are in the saved CSV; they are mostly children/parents of the same handful of biological themes (cytokine production, leukocyte activation, response to bacterium, type-I/II interferon response) that are already condensed into single Hallmarks in Section 11.2.
 
 ## 11.4 ORA Across All Time Points (Hallmark)
 
@@ -1830,6 +1859,210 @@ if (!is.null(spia_v1) && nrow(spia_v1) > 0) {
 ```
 
 Pathways with large **|tA|** (total net accumulation) and small **pPERT** are those where **topology** contributes strongly, not just list overlap.
+
+## 15.4 Does SPIA agree with the Hallmark / GO results? (cross-database validation)
+
+**Short answer:** SPIA uses a *different reference database* (KEGG signalling maps) than ORA/GSEA/GSVA in Sections 11–14 (which use **MSigDB Hallmark** + **GO:BP**). Pathway *names* therefore do not match 1-to-1 — but we can still check whether the same biological signal is captured by all three databases.
+
+### Why a direct name-match doesn't work
+
+| Database | Source | Granularity | Used by |
+|----------|--------|-------------|---------|
+| **MSigDB Hallmark** | Liberzon *et al.* 2015 — 50 curated, low-redundancy gene sets | broad biological themes (~200 genes / set) | ORA, GSEA, GSVA in Sections 11–14 |
+| **GO:BP** | Gene Ontology Consortium | thousands of overlapping terms | ORA in Section 11.3 |
+| **KEGG signalling maps** | Kanehisa Lab | ~330 curated pathways with **edges** (activation/inhibition) | SPIA in this section |
+
+There is overlap *in the underlying biology* (e.g. "Cytokine-cytokine receptor interaction" in KEGG ↔ `HALLMARK_INFLAMMATORY_RESPONSE`) but the gene sets are not identical — KEGG is more mechanistic and signalling-focused, Hallmark is more thematic.
+
+### Strategy
+
+The cleanest validation is **same database, multiple methods**: run **ORA-KEGG** and **GSEA-KEGG** on V1 using KEGG gene sets pulled from MSigDB, then compare to **SPIA**. Any disagreement is then *methodological* (topology vs. flat enrichment), not *database-driven*. We then add a **gene-level** overlap with the Hallmark leading edge to bridge to Sections 11–12.
+
+### 15.4.1 Pull KEGG gene sets from MSigDB
+
+```{r kegg-genesets, cache=FALSE}
+msigdb_kegg <- msigdbr(species = "Homo sapiens", collection = "C2") %>%
+  dplyr::filter(grepl("^KEGG_", gs_name))
+
+cat("KEGG gene sets pulled from MSigDB:",
+    length(unique(msigdb_kegg$gs_name)), "pathways\n")
+
+t2g_kegg <- msigdb_kegg %>% dplyr::select(gs_name, gene_symbol)
+```
+
+### 15.4.2 KEGG ORA + KEGG GSEA on V1
+
+```{r kegg-ora-gsea, cache=TRUE}
+ora_kegg_v1 <- enricher(
+  gene = sig_sym_v1, universe = univ_sym,
+  TERM2GENE = t2g_kegg,
+  pvalueCutoff = 1, pAdjustMethod = "BH", qvalueCutoff = 1
+)
+
+gsea_kegg_v1 <- GSEA(
+  geneList     = ranked_lists$V1,
+  TERM2GENE    = t2g_kegg,
+  pvalueCutoff = 1, eps = 0
+)
+
+cat("KEGG ORA  significant pathways (p.adjust<0.05):",
+    sum(as.data.frame(ora_kegg_v1)$p.adjust  < 0.05), "\n")
+cat("KEGG GSEA significant pathways (p.adjust<0.05):",
+    sum(as.data.frame(gsea_kegg_v1)$p.adjust < 0.05), "\n")
+```
+
+### 15.4.3 Map SPIA → MSigDB-KEGG and merge
+
+SPIA exposes the human-readable pathway name (e.g. `"Cytokine-cytokine receptor interaction"`); MSigDB exposes the upper-snake-case `gs_name` (e.g. `"KEGG_CYTOKINE_CYTOKINE_RECEPTOR_INTERACTION"`). We normalise both to the same form and join.
+
+```{r spia-kegg-mapping}
+norm_kegg_name <- function(s) {
+  s <- toupper(s)
+  s <- gsub("[^A-Z0-9]+", "_", s)
+  s <- gsub("^_+|_+$", "", s)
+  s
+}
+
+spia_v1_df <- tibble::rownames_to_column(as.data.frame(spia_v1), "spia_pwid") %>%
+  dplyr::transmute(
+    spia_pwid,
+    pathway_name = Name,
+    norm         = norm_kegg_name(Name),
+    spia_status  = Status,
+    spia_pG      = pG,
+    spia_pGFdr   = pGFdr
+  )
+
+ora_kegg_df <- as.data.frame(ora_kegg_v1) %>%
+  dplyr::transmute(
+    norm      = sub("^KEGG_", "", ID),
+    ora_padj  = p.adjust,
+    ora_count = Count
+  )
+
+gsea_kegg_df <- as.data.frame(gsea_kegg_v1) %>%
+  dplyr::transmute(
+    norm      = sub("^KEGG_", "", ID),
+    gsea_padj = p.adjust,
+    gsea_NES  = NES
+  )
+
+cross_kegg <- spia_v1_df %>%
+  dplyr::left_join(ora_kegg_df,  by = "norm") %>%
+  dplyr::left_join(gsea_kegg_df, by = "norm")
+
+n_matched <- sum(!is.na(cross_kegg$gsea_padj) | !is.na(cross_kegg$ora_padj))
+cat("SPIA pathways successfully mapped to MSigDB KEGG:",
+    n_matched, "/", nrow(cross_kegg), "\n")
+```
+
+```{r spia-cross-table}
+top_cross <- cross_kegg %>%
+  dplyr::arrange(spia_pG) %>%
+  dplyr::mutate(
+    spia_pG    = signif(spia_pG, 2),
+    spia_pGFdr = signif(spia_pGFdr, 2),
+    ora_padj   = signif(ora_padj, 2),
+    gsea_padj  = signif(gsea_padj, 2),
+    gsea_NES   = round(gsea_NES, 2)
+  ) %>%
+  dplyr::select(pathway_name, spia_status,
+                spia_pG, spia_pGFdr,
+                ora_padj, ora_count,
+                gsea_NES, gsea_padj) %>%
+  head(15)
+
+knitr::kable(top_cross, caption = "Top 15 SPIA pathways at V1, with KEGG-ORA and KEGG-GSEA evidence side-by-side. Empty cells = pathway present in SPIA but not in MSigDB's KEGG collection (or vice versa).")
+```
+
+### 15.4.4 Visualise the agreement
+
+A single scatter showing every KEGG pathway that *both* SPIA and KEGG-GSEA could score: x-axis = SPIA evidence (`-log10(pG)`), y-axis = GSEA evidence (`-log10(p.adjust)`). Pathways that are significant in *both* (top-right) are the most robust hits — agreement across two independent methods on the same database.
+
+```{r spia-vs-gsea-kegg, fig.width=8, fig.height=6}
+plot_df <- cross_kegg %>%
+  dplyr::filter(!is.na(spia_pG) & !is.na(gsea_padj)) %>%
+  dplyr::mutate(
+    sig_spia = spia_pGFdr < 0.05,
+    sig_gsea = gsea_padj  < 0.05,
+    both     = sig_spia & sig_gsea,
+    label    = ifelse(both, pathway_name, NA)
+  )
+
+ggplot(plot_df, aes(x = -log10(spia_pG), y = -log10(gsea_padj))) +
+  geom_point(aes(color = both, size = abs(gsea_NES)), alpha = 0.85) +
+  scale_color_manual(values = c(`TRUE` = "firebrick", `FALSE` = "gray70"),
+                     labels = c("Sig in only one", "Sig in both"),
+                     name   = NULL) +
+  geom_vline(xintercept = -log10(0.05), linetype = "dashed", color = "gray40") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "gray40") +
+  geom_text_repel(aes(label = label), size = 2.6, max.overlaps = 25, na.rm = TRUE) +
+  labs(title = "SPIA vs KEGG-GSEA — KEGG pathways, V1 vs Control",
+       subtitle = "Same database (KEGG), two methods. Top-right = robust.",
+       x = "-log10(SPIA pG)",
+       y = "-log10(GSEA padj)",
+       size = "|GSEA NES|") +
+  theme(legend.position = "bottom")
+```
+
+### 15.4.5 Bridge back to Hallmark — *gene-level* agreement
+
+Hallmark and KEGG are different gene-set definitions, so a pathway-name comparison is meaningless. The cleanest bridge is at the **gene level**: take the **leading-edge genes** from each top-5 Hallmark in GSEA (Section 12.2) and intersect them with the **member genes** of each top-5 SPIA KEGG pathway. A high overlap means SPIA and Hallmark are pointing to the same biology even if they disagree on the pathway label.
+
+```{r spia-hallmark-gene-overlap, fig.width=9, fig.height=5}
+top5_hallmark <- gsea_h_df %>%
+  dplyr::arrange(p.adjust) %>%
+  head(5)
+top5_hallmark_genes <- setNames(
+  strsplit(top5_hallmark$core_enrichment, "/"),
+  gsub("HALLMARK_", "", top5_hallmark$ID)
+)
+
+top5_spia <- cross_kegg %>%
+  dplyr::arrange(spia_pG) %>%
+  head(5)
+kegg_members <- split(msigdb_kegg$gene_symbol, msigdb_kegg$gs_name)
+top5_spia_genes <- lapply(top5_spia$norm, function(n) {
+  key <- paste0("KEGG_", n)
+  if (key %in% names(kegg_members)) unique(kegg_members[[key]]) else character(0)
+})
+names(top5_spia_genes) <- top5_spia$pathway_name
+
+overlap_mat <- outer(
+  seq_along(top5_hallmark_genes),
+  seq_along(top5_spia_genes),
+  Vectorize(function(i, j) {
+    a <- top5_hallmark_genes[[i]]; b <- top5_spia_genes[[j]]
+    if (length(a) == 0 || length(b) == 0) return(0)
+    length(intersect(a, b))
+  })
+)
+rownames(overlap_mat) <- names(top5_hallmark_genes)
+colnames(overlap_mat) <- names(top5_spia_genes)
+
+overlap_long <- as.data.frame(as.table(overlap_mat))
+colnames(overlap_long) <- c("Hallmark", "SPIA_KEGG", "shared_genes")
+
+ggplot(overlap_long, aes(x = SPIA_KEGG, y = Hallmark, fill = shared_genes)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = shared_genes), size = 3.5) +
+  scale_fill_gradient(low = "white", high = "firebrick") +
+  labs(title = "Shared genes — top-5 Hallmark (GSEA leading edge) vs top-5 SPIA KEGG (full pathway)",
+       x = "SPIA top KEGG pathways", y = "Hallmark top pathways", fill = "Shared\ngenes") +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, size = 8),
+        axis.text.y = element_text(size = 8))
+```
+
+**Reading the heatmap.** Cells with high counts (red) tell us a SPIA-flagged KEGG pathway and a GSEA-flagged Hallmark are describing **the same population of genes**. For acute Lyme we expect strong overlap between e.g. `INFLAMMATORY_RESPONSE` ↔ `Cytokine-cytokine receptor interaction` and `IFN_GAMMA_RESPONSE` ↔ `Toll-like receptor signaling` / `JAK-STAT signaling`. If those cells are highly populated, the answer is "**Yes, SPIA agrees with the Hallmark/GSEA result at the gene level — it is just dressing the same biology in KEGG vocabulary.**"
+
+### 15.4.6 Save the cross-database table
+
+```{r save-spia-cross}
+write.csv(cross_kegg %>% dplyr::arrange(spia_pG),
+          file.path(results_dir, "Cross_DB_SPIA_vs_KEGG_ORA_GSEA_V1.csv"),
+          row.names = FALSE)
+cat("Saved:", file.path(results_dir, "Cross_DB_SPIA_vs_KEGG_ORA_GSEA_V1.csv"), "\n")
+```
 
 ---
 ---
