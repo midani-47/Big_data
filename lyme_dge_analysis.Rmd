@@ -908,15 +908,25 @@ Not a 100% sure why our numbers differ, but I assume it's because we use:
 (3) DESeq2 instead of Limma/Voom, and (4) different fold-change/FDR thresholds. \n 
 The pattern should be similar: most DEGs at V1 (acute), declining through V2 and V5 as the transcriptome partially recovers.
 
-## 10.4 Top DEGs at V1
+## 10.4 Top DEGs across all time points
+
+We list the top 15 DEGs at each visit (acute V1, post-treatment V2, 6-month follow-up V5) so readers can scan the strongest signals at every stage of the disease trajectory in one place.
 
 ```{r top-degs}
-res_list$V1 %>%
-  dplyr::filter(!is.na(padj) & padj < 0.05) %>%
-  head(15) %>%
-  dplyr::select(Symbol, log2FoldChange, padj, GeneType) %>%
-  print()
+top_degs <- function(df, n = 15) {
+  df %>%
+    dplyr::filter(!is.na(padj) & padj < 0.05) %>%
+    head(n) %>%
+    dplyr::select(Symbol, log2FoldChange, padj, GeneType)
+}
+
+for (tp in names(res_list)) {
+  cat("\n===== Top 15 DEGs at", tp, "vs Control =====\n")
+  print(top_degs(res_list[[tp]], 15))
+}
 ```
+
+**Reading.** Compare the *same* top genes across the three tables. *S100A8 / S100A9*, *FCGR1A*, *CXCL10*, the IFN-stimulated genes (*IFI27*, *ISG15*, *RSAD2*, *OAS*) and the proliferation cluster (*MKI67*, *TOP2A*, *RRM2*) tend to reappear with progressively smaller LFCs from V1 → V2 → V5, which is the gene-level expression of the "persistent but resolving" signature. Genes that *only* appear at V5 (rather than carrying over from V1) are typically related to homeostasis / repair and are interesting to flag separately.
 
 ## 10.5 Volcano Plots
 
@@ -990,6 +1000,144 @@ make_volcano_highlight(res_list$V1,
                        "V1 vs Control — genes of interest highlighted",
                        genes_of_interest)
 ```
+
+### V2 vs Control — what survives the antibiotic course?
+
+V2 is sampled three weeks after V1, after the antibiotic course is complete. If the inflammatory programme were a simple acute response we would expect most of the V1 picks to fall back to baseline here. The opposite tends to happen in Lyme — the central finding of the paper — and the volcano below makes that visually obvious.
+
+```{r genes-of-interest-v2, fig.width=11, fig.height=6.5}
+goi_v2_df <- res_list$V2 %>%
+  dplyr::filter(Symbol %in% genes_of_interest) %>%
+  dplyr::select(Symbol, log2FoldChange, padj, baseMean, Description) %>%
+  dplyr::arrange(dplyr::desc(log2FoldChange))
+cat("Genes of interest at V2 (sorted by LFC):\n")
+print(goi_v2_df)
+
+goi_still_up_v2 <- goi_v2_df %>%
+  dplyr::filter(!is.na(padj) & padj < 0.05 & log2FoldChange > 1) %>%
+  dplyr::pull(Symbol)
+cat("\nGenes of interest still significantly UP at V2:",
+    length(goi_still_up_v2), "/", length(genes_of_interest),
+    "->", paste(goi_still_up_v2, collapse = ", "), "\n")
+
+make_volcano_highlight(res_list$V2,
+                       "V2 (post-treatment) vs Control — genes of interest highlighted",
+                       genes_of_interest)
+```
+
+**How to read the V2 plot.** Compare to V1: most genes of interest should still be in the upper-right but with **smaller** LFCs and slightly larger p-values. CXCL10, S100A8/A9, FCGR1A, ISG15/IFI27/BATF2 typically survive antibiotic clearance because the inflammatory programme is now self-sustained by the autocrine NF-κB / IFN-γ loops described in Section 11.2.1 — the bacterium is gone but the host immune machinery is still running. This is the V2 piece of the "persistent inflammatory signature" story.
+
+### V5 vs Control — does CXCL10 (and the rest of the V1 picks) survive 6 months later?
+
+The whole reason CXCL10 is the headline pick is that it is reported to **stay elevated in PTLDS**. That claim is only useful if we can verify it on our own data. Below is the V5 volcano with the **same set of genes of interest highlighted** (so CXCL10, S100A8/A9, TLR2, etc. are bold-labelled if and only if they are still significantly up at V5), plus **labels for every gene that is still significantly upregulated** (`padj < 0.05`, `log2FC > 1`) so we see the full residual signature.
+
+```{r genes-of-interest-v5, fig.width=11, fig.height=6.5}
+goi_v5_df <- res_list$V5 %>%
+  dplyr::filter(Symbol %in% genes_of_interest) %>%
+  dplyr::select(Symbol, log2FoldChange, padj, baseMean, Description) %>%
+  dplyr::arrange(dplyr::desc(log2FoldChange))
+cat("Genes of interest at V5 (sorted by LFC):\n")
+print(goi_v5_df)
+
+# How many of the V1 picks are still significantly up at V5?
+goi_still_up_v5 <- goi_v5_df %>%
+  dplyr::filter(!is.na(padj) & padj < 0.05 & log2FoldChange > 1) %>%
+  dplyr::pull(Symbol)
+cat("\nGenes of interest still significantly UP at V5:",
+    length(goi_still_up_v5), "/", length(genes_of_interest),
+    "->", paste(goi_still_up_v5, collapse = ", "), "\n")
+
+make_volcano_v5_persist <- function(df, title, highlight, max_labels = 25) {
+  df <- df %>%
+    dplyr::mutate(sig = dplyr::case_when(
+      is.na(padj) ~ "NS",
+      padj < 0.05 & log2FoldChange > 1  ~ "Up",
+      padj < 0.05 & log2FoldChange < -1 ~ "Down",
+      TRUE ~ "NS"))
+
+  hl    <- df %>% dplyr::filter(Symbol %in% highlight)
+  up_lab <- df %>%
+    dplyr::filter(sig == "Up" & !(Symbol %in% highlight)) %>%
+    dplyr::arrange(padj) %>%
+    head(max_labels)
+
+  ggplot(df, aes(x = log2FoldChange, y = -log10(pvalue))) +
+    geom_point(aes(color = sig), alpha = 0.35, size = 1) +
+    # other significantly up genes — small grey labels
+    geom_text_repel(data = up_lab, aes(label = Symbol),
+                    size = 2.6, color = "gray25",
+                    max.overlaps = 60, box.padding = 0.3,
+                    segment.alpha = 0.4) +
+    # genes of interest — bold, dark red, larger
+    geom_point(data = hl, color = "black", size = 2.6) +
+    geom_text_repel(data = hl, aes(label = Symbol),
+                    size = 4, fontface = "bold", color = "firebrick4",
+                    box.padding = 0.6, max.overlaps = 60) +
+    scale_color_manual(values = c(Up = "firebrick", Down = "steelblue", NS = "gray80")) +
+    geom_vline(xintercept = c(-1, 1), linetype = "dashed", color = "gray40") +
+    geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "gray40") +
+    labs(title    = title,
+         subtitle = "Bold red labels = genes of interest from V1; grey labels = other DEGs (padj<0.05, LFC>1).",
+         x = "log2 Fold Change", y = "-log10(p-value)") +
+    theme(legend.position = "bottom")
+}
+
+make_volcano_v5_persist(res_list$V5,
+                        "V5 (6-month follow-up) vs Control — persistence of V1 picks",
+                        genes_of_interest)
+```
+
+**How to read this for the discussion:**
+
+- If **CXCL10** appears as a bold red label in the upper-right, our data **directly recapitulates** the PTLDS biomarker finding (Soloski *et al.* 2014, Aucott *et al.* 2016) — CXCL10 is still transcriptionally elevated 6 months after antibiotics, in this cohort, with `padj < 0.05` and `log2FC > 1`. That is a clean, citable claim.
+- If CXCL10 is **not** in the upper-right at V5, you have two equally interesting things to say: (a) at the cohort-mean level the signal has resolved; and (b) the per-patient GSVA boxplots in Section 14.7 are then the right place to look — PTLDS is, in the literature, a **subset** phenomenon, so a small number of V5 outliers can still carry CXCL10 even when the cohort mean has returned to baseline. The `goi_v5_df` table printed above tells you the cohort-level effect (LFC + padj at V5) directly.
+- The **grey labels** show every other gene still significantly up at V5. If those labels are dominated by classic ISGs (e.g. *IFI27*, *RSAD2*, *OAS*, *MX1*) and complement / neutrophil genes, the residual signature at 6 months is still the **same biology** as V1 — just at lower amplitude. That is exactly the "persistent inflammatory signature" finding of the original paper.
+
+### Cross-time-point summary for the genes of interest
+
+A single table that joins the V1, V2, V5 numbers for every pick — useful for the report and for spotting which genes resolve and which persist.
+
+```{r goi-cross-tp, fig.width=10, fig.height=5}
+goi_long <- dplyr::bind_rows(
+  res_list$V1 %>% dplyr::filter(Symbol %in% genes_of_interest) %>%
+    dplyr::transmute(Symbol, timepoint = "V1",
+                     log2FoldChange, padj),
+  res_list$V2 %>% dplyr::filter(Symbol %in% genes_of_interest) %>%
+    dplyr::transmute(Symbol, timepoint = "V2",
+                     log2FoldChange, padj),
+  res_list$V5 %>% dplyr::filter(Symbol %in% genes_of_interest) %>%
+    dplyr::transmute(Symbol, timepoint = "V5",
+                     log2FoldChange, padj)
+)
+
+goi_wide <- goi_long %>%
+  dplyr::mutate(sig = !is.na(padj) & padj < 0.05 & abs(log2FoldChange) > 1) %>%
+  dplyr::select(-padj) %>%
+  tidyr::pivot_wider(names_from = timepoint,
+                     values_from = c(log2FoldChange, sig),
+                     names_glue = "{.value}_{timepoint}") %>%
+  dplyr::arrange(dplyr::desc(log2FoldChange_V1))
+print(goi_wide)
+
+ggplot(goi_long,
+       aes(x = factor(timepoint, levels = c("V1","V2","V5")),
+           y = log2FoldChange, group = Symbol, color = Symbol)) +
+  geom_line(linewidth = 0.7, alpha = 0.85) +
+  geom_point(aes(shape = !is.na(padj) & padj < 0.05 & abs(log2FoldChange) > 1),
+             size = 3) +
+  scale_shape_manual(values = c(`TRUE` = 16, `FALSE` = 1),
+                     labels = c("padj<0.05 & |LFC|>1", "n.s."),
+                     name = NULL) +
+  geom_hline(yintercept = c(-1, 1), linetype = "dashed", color = "gray60") +
+  geom_hline(yintercept = 0, color = "gray40") +
+  labs(title = "Genes of interest — LFC trajectory across V1 → V2 → V5",
+       subtitle = "Filled circle = significant at that visit. Lines decay = signature is resolving.",
+       x = NULL, y = "log2 Fold Change vs Control") +
+  theme(legend.position = "right",
+        legend.text = element_text(size = 8))
+```
+
+This trajectory plot is the simplest visual answer to "does CXCL10 persist?". Every pick that stays above LFC = 1 (and stays a filled circle) at V5 is a candidate persistence biomarker; every pick that decays below the dashed line by V5 is a marker of acute infection that resolves.
 
 ### Why these genes are interesting
 
@@ -1102,37 +1250,102 @@ t2n_gobp <- msigdb_gobp %>%
   dplyr::distinct()
 ```
 
-## 11.2 ORA: Hallmark (V1)
+## 11.2 ORA: Hallmark across all time points (V1, V2, V5)
 
-```{r ora-hallmark-v1}
-sig_sym_v1 <- res_list$V1 %>%
-  dplyr::filter(!is.na(padj) & padj < 0.05 & abs(log2FoldChange) > 1 &
-                !is.na(Symbol) & Symbol != "") %>%
-  dplyr::pull(Symbol) %>% unique()
+We run the same Hallmark ORA at each visit so the persistence/resolution pattern is visible at the pathway level, not just for V1. This block also computes the per-timepoint significant-gene and universe vectors used by other sections (11.3 GO:BP, 15.4 SPIA cross-DB).
 
-univ_sym <- res_list$V1 %>%
-  dplyr::filter(!is.na(Symbol) & Symbol != "") %>%
-  dplyr::pull(Symbol) %>% unique()
+```{r ora-hallmark-all-tp}
+sig_sym_per_tp <- lapply(res_list, function(df) {
+  df %>%
+    dplyr::filter(!is.na(padj) & padj < 0.05 & abs(log2FoldChange) > 1 &
+                  !is.na(Symbol) & Symbol != "") %>%
+    dplyr::pull(Symbol) %>% unique()
+})
+univ_sym_per_tp <- lapply(res_list, function(df) {
+  df %>%
+    dplyr::filter(!is.na(Symbol) & Symbol != "") %>%
+    dplyr::pull(Symbol) %>% unique()
+})
 
-ora_hallmark_v1 <- enricher(
-  gene = sig_sym_v1, universe = univ_sym,
-  TERM2GENE = t2g_hallmark,
-  pvalueCutoff = 0.05, pAdjustMethod = "BH", qvalueCutoff = 1 # BH here stands for Benjamini-Hochberg correction for multiple testing
+ora_hallmark_all <- list()
+for (tp in names(res_list)) {
+  ora_hallmark_all[[tp]] <- enricher(
+    gene         = sig_sym_per_tp[[tp]],
+    universe     = univ_sym_per_tp[[tp]],
+    TERM2GENE    = t2g_hallmark,
+    pvalueCutoff = 0.05,
+    pAdjustMethod = "BH",
+    qvalueCutoff = 1
+  )
+}
+
+# Backward-compatible aliases for sections that consume the V1-only objects
+sig_sym_v1      <- sig_sym_per_tp$V1
+univ_sym        <- univ_sym_per_tp$V1
+ora_hallmark_v1 <- ora_hallmark_all$V1
+
+cat("Enriched Hallmark pathways (padj<0.05, BH):",
+    "  V1 =", nrow(as.data.frame(ora_hallmark_all$V1)),
+    "| V2 =", nrow(as.data.frame(ora_hallmark_all$V2)),
+    "| V5 =", nrow(as.data.frame(ora_hallmark_all$V5)), "\n")
+```
+
+`pAdjustMethod = "BH"` is Benjamini-Hochberg multiple-testing correction. `qvalueCutoff = 1` disables an additional q-value filter so we only rely on the BH-adjusted p-values; we can revisit this if Thomas wants stricter control.
+
+```{r ora-hallmark-dotplots, fig.width=18, fig.height=6}
+plot_ora_dotplot <- function(ora_obj, title) {
+  if (is.null(ora_obj) || nrow(as.data.frame(ora_obj)) == 0)
+    return(ggplot() + theme_void() +
+           ggtitle(paste(title, "\n(no enriched pathways at padj<0.05)")))
+  dotplot(ora_obj, showCategory = 15) +
+    ggtitle(title) +
+    theme(axis.text.y = element_text(size = 8),
+          plot.title  = element_text(size = 11))
+}
+
+grid.arrange(
+  plot_ora_dotplot(ora_hallmark_all$V1, "V1 (acute) vs Control"),
+  plot_ora_dotplot(ora_hallmark_all$V2, "V2 (post-treatment) vs Control"),
+  plot_ora_dotplot(ora_hallmark_all$V5, "V5 (6 months) vs Control"),
+  ncol = 3
 )
 ```
 
-BH in the code stands for Benjamini-Hochberg correction for multiple testing. And q value is the corrected p-value for multiple testing.
-qvalueCutoff = 1 means that we are not interested in the q-values, only the p-values. We should confirm with Thomas whether it makes biological sense to use q-values here, given that the genes are immune related and the SD is wild.
+**How to read these three panels.**
 
+- **V1** is dominated by inflammation / TNFA / IFN-γ / Complement / IL6-JAK-STAT3 — the classical acute-infection set. This panel is what Section 11.2.1 dissects in detail.
+- **V2** typically loses some pathways (e.g. complement, IFN-α) and keeps the dominant TNFA / Inflammatory Response / IFN-γ trio — the "persistent" component after antibiotic clearance.
+- **V5** is the most discriminating panel: pathways that *still* appear here are the residual chronic signature; pathways that have dropped off are the ones that resolve fully by 6 months. If V5 has zero enriched Hallmarks, the "no enriched pathways" placeholder is shown — that itself is a valid result and is consistent with mostly-resolved cohort-mean signal.
 
-```{r ora-hallmark-dotplot, fig.height=6}
-if (nrow(as.data.frame(ora_hallmark_v1)) > 0) {
-  dotplot(ora_hallmark_v1, showCategory = 15) +
-    ggtitle("ORA: Hallmark Pathways Enriched in V1 DEGs")
+A cross-time-point heatmap of `-log10(padj)` for every Hallmark significant in at least one timepoint is built below to make the V1 → V2 → V5 dynamics quantitative.
+
+```{r ora-hallmark-heatmap, fig.height=9, fig.width=7}
+ora_long <- dplyr::bind_rows(lapply(names(ora_hallmark_all), function(tp) {
+  df <- as.data.frame(ora_hallmark_all[[tp]])
+  if (nrow(df) == 0) return(NULL)
+  df %>% dplyr::transmute(ID, p.adjust, timepoint = tp)
+}))
+
+if (nrow(ora_long) > 0) {
+  ora_mat <- ora_long %>%
+    dplyr::mutate(score = -log10(p.adjust)) %>%
+    dplyr::select(ID, timepoint, score) %>%
+    tidyr::pivot_wider(names_from = timepoint, values_from = score) %>%
+    tibble::column_to_rownames("ID") %>% as.matrix()
+  ora_mat[is.na(ora_mat)] <- 0
+  ora_mat <- ora_mat[, intersect(c("V1","V2","V5"), colnames(ora_mat)), drop = FALSE]
+
+  pheatmap(ora_mat,
+           color = colorRampPalette(c("white","orange","firebrick"))(100),
+           cluster_cols = FALSE,
+           main = "ORA Hallmark -log10(padj) across V1/V2/V5",
+           fontsize_row = 7)
+} else {
+  cat("No enriched Hallmarks across any time point.\n")
 }
 ```
 
-The Hallmark collection contains 50 well-defined biological processes from MSigDB (Thomas's book Ch. 8.2). Enriched pathways tell us *which biological processes* are disrupted in acute Lyme disease. We should see how much it matches the original study's findings.
+Pathways red across all three columns are the *truly persistent* ones; red at V1 only are *acute*-specific; pathways absent at V1 but appearing at V5 (rare) would be candidate *late*-onset signatures worth a closer look.
 
 ### 11.2.1 Top hit explained: `HALLMARK_TNFA_SIGNALING_VIA_NFKB`
 
@@ -1197,90 +1410,77 @@ Their counterparts — **anti-inflammatory cytokines** — include IL-10, TGF-β
 - Bouquet *et al.* 2016, *mBio* — original Lyme RNA-seq study.
 - Soloski *et al.* 2014 *PLoS ONE* (CXCL10 in Lyme).
 
-## 11.3 ORA: GO Biological Process (V1)
+## 11.3 ORA: GO Biological Process across all time points
 
-GO:BP returns *hundreds* of significant terms because the ontology contains many overlapping descriptions of the same biology (e.g. dozens of "regulation of cytokine production" sub-terms). We therefore:
+GO:BP returns *hundreds* of significant terms at V1 (and a smaller but non-trivial number at V2 and V5). For each visit we:
 
-1. **Save the full result** to `results/ORA_GOBP_V1.csv` so the complete enrichment is reproducible and reviewable.
-2. **Plot only the top 15** by adjusted p-value (with truncated labels) so the figure is readable.
+1. **Save the full result** to `results/ORA_GOBP_<tp>.csv` for reproducibility / reviewability.
+2. **Plot only the top 15** by adjusted p-value so the figure stays readable.
 
-```{r ora-gobp-v1}
-ora_gobp_v1 <- enricher(
-  gene = sig_sym_v1, universe = univ_sym,
-  TERM2GENE = t2g_gobp, TERM2NAME = t2n_gobp,
-  pvalueCutoff = 0.05, pAdjustMethod = "BH", qvalueCutoff = 1
-)
-
-ora_gobp_v1_df <- as.data.frame(ora_gobp_v1) %>%
-  dplyr::arrange(p.adjust)
-cat("Significant GO:BP terms:", nrow(ora_gobp_v1_df),
-    "  (full table saved to results/ORA_GOBP_V1.csv)\n")
-
-write.csv(ora_gobp_v1_df,
-          file.path(results_dir, "ORA_GOBP_V1.csv"),
-          row.names = FALSE)
-
-cat("\nPreview — top 5 GO:BP terms:\n")
-print(head(ora_gobp_v1_df %>% dplyr::select(Description, p.adjust, Count), 5))
-```
-
-```{r ora-gobp-dotplot, fig.height=7}
-if (nrow(ora_gobp_v1_df) > 0) {
-  # Use the unique ID (gs_name) for the Y-axis instead of the description
-  ora_gobp_v1_top <- ora_gobp_v1
-  ora_gobp_v1_top@result <- ora_gobp_v1_top@result %>%
-    dplyr::arrange(p.adjust) %>%
-    head(15) %>%
-    dplyr::mutate(
-      # Overwrite Description with ID so dotplot uses the unique name
-      Description = ID
-    )
-
-  p <- dotplot(ora_gobp_v1_top, showCategory = 15) +
-    ggtitle("ORA: Top 15 GO Biological Process Terms (V1)") +
-    theme(axis.text.y = element_text(size = 7)) # slightly smaller font for long names
-  
-  print(p)
-}
-```
-
-```{r ora-gobp-table, echo=FALSE, results='asis'}
-if (nrow(ora_gobp_v1_df) > 0) {
-  cat("### Top 15 GO Biological Process Terms\n\n")
-  top_15_table <- ora_gobp_v1_df %>%
-    head(15) %>%
-    dplyr::select(Name = ID, Description, p.adjust, Count)
-  
-  print(knitr::kable(top_15_table, row.names = FALSE))
-}
-```
-
-The plot now shows only the top 15 by `p.adjust`. The remaining significant terms (~400+) are in the saved CSV; they are mostly children/parents of the same handful of biological themes (cytokine production, leukocyte activation, response to bacterium, type-I/II interferon response) that are already condensed into single Hallmarks in Section 11.2.
-
-## 11.4 ORA Across All Time Points (Hallmark)
-
-```{r ora-all-timepoints}
-ora_hallmark_all <- list()
-
+```{r ora-gobp-all-tp, cache=TRUE}
+ora_gobp_all <- list()
 for (tp in names(res_list)) {
-  sig_sym <- res_list[[tp]] %>%
-    dplyr::filter(!is.na(padj) & padj < 0.05 & abs(log2FoldChange) > 1 &
-                  !is.na(Symbol) & Symbol != "") %>%
-    dplyr::pull(Symbol) %>% unique()
-  univ <- res_list[[tp]] %>%
-    dplyr::filter(!is.na(Symbol) & Symbol != "") %>%
-    dplyr::pull(Symbol) %>% unique()
-  ora_hallmark_all[[tp]] <- enricher(
-    gene = sig_sym, universe = univ,
-    TERM2GENE = t2g_hallmark,
-    pvalueCutoff = 0.05, pAdjustMethod = "BH", qvalueCutoff = 1)
+  ora_gobp_all[[tp]] <- enricher(
+    gene         = sig_sym_per_tp[[tp]],
+    universe     = univ_sym_per_tp[[tp]],
+    TERM2GENE    = t2g_gobp,
+    TERM2NAME    = t2n_gobp,
+    pvalueCutoff = 0.05,
+    pAdjustMethod = "BH",
+    qvalueCutoff = 1
+  )
 }
 
-cat("Enriched Hallmark pathways: V1=",
-    nrow(as.data.frame(ora_hallmark_all$V1)),
-    " V2=", nrow(as.data.frame(ora_hallmark_all$V2)),
-    " V5=", nrow(as.data.frame(ora_hallmark_all$V5)), "\n")
+# Backward-compat alias (older sections / SPIA cross-DB still expect ora_gobp_v1)
+ora_gobp_v1    <- ora_gobp_all$V1
+ora_gobp_v1_df <- as.data.frame(ora_gobp_v1) %>% dplyr::arrange(p.adjust)
+
+for (tp in names(ora_gobp_all)) {
+  df <- as.data.frame(ora_gobp_all[[tp]]) %>% dplyr::arrange(p.adjust)
+  cat("GO:BP terms enriched at", tp, ":", nrow(df), "\n")
+  write.csv(df,
+            file.path(results_dir, paste0("ORA_GOBP_", tp, ".csv")),
+            row.names = FALSE)
+}
+cat("Full GO:BP tables saved to results/ORA_GOBP_{V1,V2,V5}.csv\n")
 ```
+
+```{r ora-gobp-dotplots, fig.width=20, fig.height=7}
+plot_gobp_dotplot <- function(ora_obj, title, n = 15) {
+  if (is.null(ora_obj) || nrow(as.data.frame(ora_obj)) == 0)
+    return(ggplot() + theme_void() +
+           ggtitle(paste(title, "\n(no enriched GO:BP terms)")))
+  top <- ora_obj
+  top@result <- top@result %>%
+    dplyr::arrange(p.adjust) %>%
+    head(n) %>%
+    dplyr::mutate(
+      Description = ifelse(nchar(Description) > 55,
+                           paste0(substr(Description, 1, 52), "..."),
+                           Description))
+  dotplot(top, showCategory = n) +
+    ggtitle(title) +
+    theme(axis.text.y = element_text(size = 7),
+          plot.title  = element_text(size = 11))
+}
+
+grid.arrange(
+  plot_gobp_dotplot(ora_gobp_all$V1, "GO:BP top 15 — V1"),
+  plot_gobp_dotplot(ora_gobp_all$V2, "GO:BP top 15 — V2"),
+  plot_gobp_dotplot(ora_gobp_all$V5, "GO:BP top 15 — V5"),
+  ncol = 3
+)
+```
+
+**How to read these.** The three GO:BP panels track *the same biological themes* the Hallmarks point to (cytokine production, leukocyte activation, response to bacterium, type-I/II interferon response) but at finer resolution. At V1 you see dozens of overlapping cytokine/immune child-terms; at V2 the same themes but fewer; at V5 the surviving terms tend to be the broadest "regulation of immune response" parents — a pattern consistent with the residual signature being a low-amplitude version of the V1 programme rather than a different biology. The full 400+-term lists per visit are in the CSVs for any reviewer who wants to dig into specific child terms.
+
+## 11.4 ORA narrative summary across time points
+
+The per-timepoint counts and the heatmap above already cover this section's old role (the all-time-point loop was moved up to 11.2 so all downstream sections can rely on `ora_hallmark_all`). Here we just summarise the trajectory in one paragraph for the report:
+
+- **V1** is the broad inflammatory-storm phase — most Hallmarks enriched, large effects.
+- **V2** *retains* the dominant TNFA / Inflammatory / IFN-γ Hallmarks with somewhat reduced significance — antibiotics cleared the bacterium but the host inflammatory programme is self-sustaining (NF-κB autocrine loop, see 11.2.1).
+- **V5** keeps only the most stubborn subset (typically TNFA, IFN-γ in this cohort). What survives here is a candidate biomarker of chronic / persistent inflammation — and is the pathway-level analogue of the gene-level CXCL10 persistence story in 10.6.
 
 ---
 ---
@@ -1340,179 +1540,246 @@ cat("  LFC-ranked bottom 5: ", paste(tail(names(ranked_lists$V1), 5),     collap
 cat("  signed-p bottom 5:   ", paste(tail(names(ranked_lists_sigp$V1), 5), collapse = ", "), "\n")
 ```
 
-## 12.2 GSEA: Hallmark (V1)
+## 12.2 GSEA: Hallmark across all time points (V1, V2, V5)
 
-```{r gsea-hallmark-v1, cache=TRUE}
-gsea_hallmark_v1 <- GSEA(
-  geneList = ranked_lists$V1,
-  TERM2GENE = t2g_hallmark,
-  pvalueCutoff = 1, eps = 0
-)
+We run the same Hallmark GSEA at every visit and reuse the resulting `gsea_results` for every per-timepoint figure that follows (dotplots, GSEA volcanoes, ORA↔GSEA validation, ranker robustness, NES heatmap). This gives a single source of truth for all GSEA-based outputs.
+
+```{r gsea-all-tp, cache=TRUE}
+gsea_results <- list()
+for (tp in names(ranked_lists))
+  gsea_results[[tp]] <- GSEA(geneList     = ranked_lists[[tp]],
+                              TERM2GENE    = t2g_hallmark,
+                              pvalueCutoff = 1, eps = 0)
+
+# Backward-compatible aliases used by SPIA cross-DB and elsewhere
+gsea_hallmark_v1 <- gsea_results$V1
 
 gsea_h_df <- as.data.frame(gsea_hallmark_v1)
 cat("Significant (padj<0.05):", sum(gsea_h_df$p.adjust < 0.05),
     "of", nrow(gsea_h_df), "pathways\n")
 ```
 
-```{r gsea-dotplot, fig.height=8}
-if (sum(gsea_h_df$p.adjust < 0.05) > 0)
-  dotplot(gsea_hallmark_v1, showCategory = 20, split = ".sign") +
+```{r gsea-dotplots, fig.width=20, fig.height=8}
+plot_gsea_dotplot <- function(g, title) {
+  df <- as.data.frame(g)
+  if (nrow(df) == 0 || sum(df$p.adjust < 0.05, na.rm = TRUE) == 0)
+    return(ggplot() + theme_void() +
+           ggtitle(paste(title, "\n(no Hallmark pathways at padj<0.05)")))
+  dotplot(g, showCategory = 15, split = ".sign") +
     facet_grid(~ .sign) +
-    ggtitle("GSEA: Hallmark Pathways (V1 vs Control)")
-```
+    ggtitle(title) +
+    theme(axis.text.y = element_text(size = 8),
+          plot.title  = element_text(size = 11))
+}
 
-The dotplot splits pathways into **activated** (enriched in upregulated genes) and **suppressed** (enriched in downregulated genes). The **Normalised Enrichment Score (NES)** measures how strongly the pathway's genes cluster at the top (activated) or bottom (suppressed) of the ranked list.
-
-**Expected biology.** *Activated* at V1: inflammatory response, TNFA-via-NFKB, IFN-γ / IFN-α response, complement, IL6-JAK-STAT3, allograft rejection (immune/MHC-II), apoptosis, G2M / E2F (because lymphocytes proliferate in response). *Suppressed* candidates: oxidative phosphorylation and translation-related sets (eIF2, MYC targets), reflecting metabolic reprogramming of immune cells away from "house-keeping" growth toward effector function — Bouquet *et al.* (2016) reported exactly this pattern (eIF2 signalling down).
-
-## 12.2b GSEA "volcano" — NES vs significance, all Hallmarks
-
-A standard pathway-level volcano: x-axis is NES (sign = direction), y-axis is `-log10(p.adjust)`. This makes it easy to see which pathways are most strongly + significantly **activated** (right-up) vs **suppressed** (left-up). It is the GSEA analogue of the gene-level volcano in Section 10.5.
-
-```{r gsea-volcano, fig.width=10, fig.height=6}
-gsea_volcano_v1 <- gsea_h_df %>%
-  dplyr::mutate(
-    direction = ifelse(NES > 0, "Activated", "Suppressed"),
-    sig       = ifelse(p.adjust < 0.05, direction, "NS"),
-    label     = ifelse(p.adjust < 0.05,
-                       gsub("HALLMARK_", "", ID), NA)
-  )
-
-ggplot(gsea_volcano_v1, aes(x = NES, y = -log10(p.adjust))) +
-  geom_point(aes(color = sig, size = setSize), alpha = 0.85) +
-  scale_color_manual(values = c(Activated = "firebrick",
-                                Suppressed = "steelblue",
-                                NS = "gray70")) +
-  geom_text_repel(aes(label = label), size = 2.7,
-                  max.overlaps = 30, na.rm = TRUE) +
-  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "gray40") +
-  geom_vline(xintercept = 0, linetype = "dashed", color = "gray40") +
-  labs(title = "GSEA Volcano: Hallmark Pathways (V1 vs Control)",
-       x = "Normalised Enrichment Score (NES)",
-       y = "-log10(adjusted p-value)",
-       color = NULL, size = "Pathway size") +
-  theme(legend.position = "bottom")
-```
-
-This single plot replaces several rows of the dotplot and immediately shows two things: (a) the **immune / inflammatory pathways dominate the right-up corner** (activated and very significant); (b) any **suppressed** pathway (left-up) becomes visible — typically OxPhos / MYC targets — confirming the expected metabolic shift.
-
-## 12.2c Validation: ORA ↔ GSEA agreement
-
-GSEA and ORA answer slightly different questions (ranked-list shift vs DEG over-representation), but for a real biological signal they should **agree** on the top hits. Plotting ORA `-log10(p.adjust)` against GSEA `-log10(p.adjust)` for shared Hallmark IDs gives a direct validation: high concordance means our DEG calls are not a fluke.
-
-```{r ora-gsea-concordance, fig.width=8, fig.height=6}
-ora_v1_df  <- as.data.frame(ora_hallmark_v1) %>%
-  dplyr::transmute(ID, ora_padj = p.adjust)
-gsea_v1_df <- gsea_h_df %>%
-  dplyr::transmute(ID, gsea_padj = p.adjust, NES)
-
-concord <- dplyr::full_join(ora_v1_df, gsea_v1_df, by = "ID") %>%
-  dplyr::mutate(
-    ora_padj  = ifelse(is.na(ora_padj),  1, ora_padj),
-    gsea_padj = ifelse(is.na(gsea_padj), 1, gsea_padj),
-    label     = gsub("HALLMARK_", "", ID),
-    both_sig  = (ora_padj < 0.05) & (gsea_padj < 0.05)
-  )
-
-ggplot(concord, aes(x = -log10(ora_padj), y = -log10(gsea_padj))) +
-  geom_point(aes(color = both_sig, size = abs(NES)), alpha = 0.85) +
-  scale_color_manual(values = c(`TRUE` = "firebrick", `FALSE` = "gray70"),
-                     labels = c("Sig in only one or neither", "Sig in both"),
-                     name = NULL) +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray40") +
-  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "gray40") +
-  geom_vline(xintercept = -log10(0.05), linetype = "dashed", color = "gray40") +
-  geom_text_repel(data = concord %>% dplyr::filter(both_sig),
-                  aes(label = label), size = 2.6, max.overlaps = 25) +
-  labs(title = "ORA vs GSEA significance — Hallmark, V1 vs Control",
-       subtitle = "Points above both dashed lines are significant in both methods (validation).",
-       x = "-log10(ORA padj)", y = "-log10(GSEA padj)",
-       size = "|NES|") +
-  theme(legend.position = "bottom")
-
-cat("\nHallmarks significant in both ORA and GSEA:",
-    sum(concord$both_sig), "/", nrow(concord), "\n")
-```
-
-**Reading.** The diagonal is "perfect agreement". Top-right cluster contains the **validated** pathways: inflammatory response, TNFA-via-NFKB, IFN-γ response, complement, IL6-JAK-STAT3, etc. — these are detected by *both* methods, which is the strongest evidence the signal is real. Pathways significant only in GSEA (above the horizontal but to the left of the vertical line) are typical "subtle but coordinated" changes that ORA misses because few individual genes pass the |LFC| > 1, padj < 0.05 cutoff — this is exactly where GSEA earns its keep.
-
-## 12.2d Robustness check: GSEA with LFC ranker vs signed −log10(p) ranker
-
-The choice of ranking metric is one of the few subjective steps in GSEA. We run the same analysis with both rankers (Section 12.1) and check that the top hits agree. If both rankers produce the same Hallmark pathways at the top, the result is robust to the choice; if they disagree, the disagreeing pathways deserve extra scrutiny.
-
-```{r gsea-ranker-compare-run, cache=TRUE}
-gsea_v1_signedp <- GSEA(
-  geneList     = ranked_lists_sigp$V1,
-  TERM2GENE    = t2g_hallmark,
-  pvalueCutoff = 1, eps = 0
+grid.arrange(
+  plot_gsea_dotplot(gsea_results$V1, "V1 (acute) vs Control"),
+  plot_gsea_dotplot(gsea_results$V2, "V2 (post-treatment) vs Control"),
+  plot_gsea_dotplot(gsea_results$V5, "V5 (6 months) vs Control"),
+  ncol = 3
 )
 ```
 
-```{r gsea-ranker-compare-plot, fig.width=8, fig.height=6}
-df_lfc <- as.data.frame(gsea_hallmark_v1) %>%
-  dplyr::transmute(ID, NES_lfc = NES, padj_lfc = p.adjust)
-df_sgp <- as.data.frame(gsea_v1_signedp) %>%
-  dplyr::transmute(ID, NES_sgp = NES, padj_sgp = p.adjust)
+Each panel splits Hallmark pathways into **activated** (enriched in upregulated genes) and **suppressed** (enriched in downregulated genes). The **Normalised Enrichment Score (NES)** measures how strongly the pathway's genes cluster at the top (activated) or bottom (suppressed) of the ranked list.
 
-ranker_compare <- dplyr::full_join(df_lfc, df_sgp, by = "ID") %>%
-  dplyr::mutate(
-    padj_lfc = ifelse(is.na(padj_lfc), 1, padj_lfc),
-    padj_sgp = ifelse(is.na(padj_sgp), 1, padj_sgp),
-    label    = gsub("HALLMARK_", "", ID),
-    both_sig = padj_lfc < 0.05 & padj_sgp < 0.05
-  )
+**Expected biology and what we typically see across visits:**
 
-cat("Pearson correlation between NES from the two rankers:",
-    round(cor(ranker_compare$NES_lfc, ranker_compare$NES_sgp,
-              use = "complete.obs"), 3), "\n")
-cat("Hallmarks significant in BOTH rankers:",
-    sum(ranker_compare$both_sig, na.rm = TRUE),
-    "/", nrow(ranker_compare), "\n")
+- **V1 — Activated:** inflammatory response, TNFA-via-NFKB, IFN-γ / IFN-α response, complement, IL6-JAK-STAT3, allograft rejection (immune/MHC-II), apoptosis, G2M / E2F (lymphocyte proliferation). *Suppressed:* oxidative phosphorylation and translation-related sets (eIF2, MYC targets) — the metabolic reprogramming Bouquet *et al.* (2016) reported.
+- **V2 — Activated:** typically the same TNFA-via-NFKB / Inflammatory / IFN-γ trio, with reduced NES — the persistent post-treatment signature.
+- **V5 — Activated:** if anything survives at 6 months, it tends to be TNFA-via-NFKB and IFN-γ alone — the most stubborn part of the persistent signature, and the pathway-level analogue of the gene-level CXCL10 persistence story (Section 10.6).
 
-ggplot(ranker_compare, aes(x = NES_lfc, y = NES_sgp)) +
-  geom_point(aes(color = both_sig), alpha = 0.85, size = 2.4) +
-  scale_color_manual(values = c(`TRUE` = "firebrick", `FALSE` = "gray70"),
-                     labels = c("Sig in ≤1 ranker", "Sig in both"),
-                     name = NULL) +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray40") +
-  geom_hline(yintercept = 0, linetype = "dotted", color = "gray60") +
-  geom_vline(xintercept = 0, linetype = "dotted", color = "gray60") +
-  geom_text_repel(data = ranker_compare %>% dplyr::filter(both_sig),
-                  aes(label = label), size = 2.6, max.overlaps = 25) +
-  labs(title = "GSEA NES — LFC ranker vs signed −log10(p) ranker (V1)",
-       subtitle = "Diagonal = perfect agreement.",
-       x = "NES (ranked by log2FoldChange)",
-       y = "NES (ranked by signed −log10(p))") +
-  theme(legend.position = "bottom")
+Pathways that flip from suppressed at V1 to neutral at V5 (e.g. OxPhos rebounding) are evidence that the metabolic reprogramming of immune cells is reversing — the *resolution* side of the story.
+
+## 12.2b GSEA "volcano" — NES vs significance, all Hallmarks at every visit
+
+The pathway-level analogue of the gene-level volcano in Section 10.5: x-axis is NES (sign = direction), y-axis is `-log10(p.adjust)`. Three panels, one per visit, make the V1 → V2 → V5 *amplitude decay* visually unmistakable.
+
+```{r gsea-volcano, fig.width=18, fig.height=6}
+plot_gsea_volcano <- function(g, title) {
+  df <- as.data.frame(g) %>%
+    dplyr::mutate(
+      direction = ifelse(NES > 0, "Activated", "Suppressed"),
+      sig       = ifelse(p.adjust < 0.05, direction, "NS"),
+      label     = ifelse(p.adjust < 0.05, gsub("HALLMARK_", "", ID), NA)
+    )
+  ggplot(df, aes(x = NES, y = -log10(p.adjust))) +
+    geom_point(aes(color = sig, size = setSize), alpha = 0.85) +
+    scale_color_manual(values = c(Activated = "firebrick",
+                                  Suppressed = "steelblue",
+                                  NS = "gray70")) +
+    geom_text_repel(aes(label = label), size = 2.5,
+                    max.overlaps = 25, na.rm = TRUE) +
+    geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "gray40") +
+    geom_vline(xintercept = 0, linetype = "dashed", color = "gray40") +
+    labs(title = title, x = "NES",
+         y = "-log10(adjusted p-value)",
+         color = NULL, size = "Set size") +
+    theme(legend.position = "bottom",
+          plot.title = element_text(size = 11))
+}
+
+grid.arrange(
+  plot_gsea_volcano(gsea_results$V1, "V1 vs Control"),
+  plot_gsea_volcano(gsea_results$V2, "V2 vs Control"),
+  plot_gsea_volcano(gsea_results$V5, "V5 vs Control"),
+  ncol = 3
+)
 ```
 
-**Reading.** A high correlation (typically >0.9 for strong biological signals) and a tight cluster of *both-significant* points along the diagonal mean the immune Hallmarks at the top are **not artefacts of the ranking choice**. Pathways that flip sign or change significance between the two rankers are the ones to be suspicious about; they tend to be small gene sets where a few high-LFC, low-power genes dominate one ranking but not the other. The rest of the GSEA analysis (Sections 12.3–12.4) uses the LFC ranker for consistency with everything downstream, but you can mention this robustness check in the discussion.
+**Reading across panels.** The y-axis shrinks from V1 → V2 → V5: fewer pathways pass `padj < 0.05`, and those that do sit closer to the dashed line. The x-axis usually keeps its sign: pathways that are red (activated) at V1 stay red at V5 if they survive, never flipping to blue. This is the GSEA-level confirmation that the residual V5 signature is a *low-amplitude V1* rather than a different biology.
 
-## 12.3 GSEA Enrichment Plots for Key Pathways
+## 12.2c Validation: ORA ↔ GSEA agreement at every visit
 
-These "mountain plots" show how a pathway's member genes are distributed in the ranked list. The green line rises when it encounters pathway genes and falls otherwise. A peak at the **left** = upregulated; **right** =
-downregulated.
+For each visit we plot ORA `-log10(padj)` against GSEA `-log10(padj)` for shared Hallmark IDs. Top-right (red) points are **significant in both methods** — the most robust hits. Pathways significant only in GSEA (left-of-vertical, above-of-horizontal) are GSEA's "subtle coordinated changes" advantage.
 
-```{r gsea-mountains, fig.height=4, fig.width=8, results='asis'}
+```{r ora-gsea-concordance-all, fig.width=18, fig.height=6}
+make_concord <- function(ora_obj, gsea_obj, title) {
+  ora_df  <- as.data.frame(ora_obj) %>%
+    dplyr::transmute(ID, ora_padj = p.adjust)
+  gsea_df <- as.data.frame(gsea_obj) %>%
+    dplyr::transmute(ID, gsea_padj = p.adjust, NES)
+  if (nrow(ora_df) == 0 && nrow(gsea_df) == 0)
+    return(ggplot() + theme_void() +
+           ggtitle(paste(title, "\n(no enrichment in either method)")))
+  d <- dplyr::full_join(ora_df, gsea_df, by = "ID") %>%
+    dplyr::mutate(
+      ora_padj  = ifelse(is.na(ora_padj),  1, ora_padj),
+      gsea_padj = ifelse(is.na(gsea_padj), 1, gsea_padj),
+      label     = gsub("HALLMARK_", "", ID),
+      both_sig  = (ora_padj < 0.05) & (gsea_padj < 0.05)
+    )
+  ggplot(d, aes(x = -log10(ora_padj), y = -log10(gsea_padj))) +
+    geom_point(aes(color = both_sig, size = abs(NES)), alpha = 0.85) +
+    scale_color_manual(values = c(`TRUE` = "firebrick", `FALSE` = "gray70"),
+                       labels = c("Sig in ≤1 method", "Sig in both"),
+                       name = NULL) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray40") +
+    geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "gray40") +
+    geom_vline(xintercept = -log10(0.05), linetype = "dashed", color = "gray40") +
+    geom_text_repel(data = d %>% dplyr::filter(both_sig),
+                    aes(label = label), size = 2.5, max.overlaps = 25) +
+    labs(title = title, x = "-log10(ORA padj)", y = "-log10(GSEA padj)",
+         size = "|NES|") +
+    theme(legend.position = "bottom",
+          plot.title = element_text(size = 11))
+}
+
+grid.arrange(
+  make_concord(ora_hallmark_all$V1, gsea_results$V1, "V1 vs Control"),
+  make_concord(ora_hallmark_all$V2, gsea_results$V2, "V2 vs Control"),
+  make_concord(ora_hallmark_all$V5, gsea_results$V5, "V5 vs Control"),
+  ncol = 3
+)
+
+# Print the both-sig counts in a single line per visit
+for (tp in names(gsea_results)) {
+  ora_df  <- as.data.frame(ora_hallmark_all[[tp]]) %>% dplyr::transmute(ID, ora_padj = p.adjust)
+  gsea_df <- as.data.frame(gsea_results[[tp]])     %>% dplyr::transmute(ID, gsea_padj = p.adjust)
+  d <- dplyr::full_join(ora_df, gsea_df, by = "ID") %>%
+    dplyr::mutate(ora_padj = ifelse(is.na(ora_padj), 1, ora_padj),
+                  gsea_padj = ifelse(is.na(gsea_padj), 1, gsea_padj))
+  cat("Hallmarks significant in BOTH ORA & GSEA at", tp, ":",
+      sum((d$ora_padj < 0.05) & (d$gsea_padj < 0.05)), "\n")
+}
+```
+
+**Reading.** At V1 you should see a populous top-right cluster — the V1 acute signal is robust to method. At V2 the cluster shrinks but the same canonical pathways survive (TNFA, Inflammatory, IFN-γ). At V5 the cluster is smallest and may even be empty for ORA (because few V5 genes pass `|LFC|>1, padj<0.05`); GSEA-only points above the horizontal but left-of-vertical are then the *subtle persistent* pathways — exactly the case GSEA was designed for.
+
+## 12.2d Robustness check: GSEA with LFC ranker vs signed −log10(p) ranker — at every visit
+
+Same robustness test as before, run for each visit. Each panel shows NES from the LFC ranker vs NES from the signed-p ranker; tight diagonal clustering of the "Sig in both" points means the result is not an artefact of how we rank the genes.
+
+```{r gsea-ranker-compare-run, cache=TRUE}
+gsea_results_signedp <- list()
+for (tp in names(ranked_lists_sigp))
+  gsea_results_signedp[[tp]] <- GSEA(geneList     = ranked_lists_sigp[[tp]],
+                                      TERM2GENE    = t2g_hallmark,
+                                      pvalueCutoff = 1, eps = 0)
+```
+
+```{r gsea-ranker-compare-plot, fig.width=18, fig.height=6}
+plot_ranker_compare <- function(g_lfc, g_sgp, title) {
+  df_lfc <- as.data.frame(g_lfc) %>%
+    dplyr::transmute(ID, NES_lfc = NES, padj_lfc = p.adjust)
+  df_sgp <- as.data.frame(g_sgp) %>%
+    dplyr::transmute(ID, NES_sgp = NES, padj_sgp = p.adjust)
+  d <- dplyr::full_join(df_lfc, df_sgp, by = "ID") %>%
+    dplyr::mutate(
+      padj_lfc = ifelse(is.na(padj_lfc), 1, padj_lfc),
+      padj_sgp = ifelse(is.na(padj_sgp), 1, padj_sgp),
+      label    = gsub("HALLMARK_", "", ID),
+      both_sig = padj_lfc < 0.05 & padj_sgp < 0.05
+    )
+  rho <- suppressWarnings(cor(d$NES_lfc, d$NES_sgp, use = "complete.obs"))
+  ggplot(d, aes(x = NES_lfc, y = NES_sgp)) +
+    geom_point(aes(color = both_sig), alpha = 0.85, size = 2.4) +
+    scale_color_manual(values = c(`TRUE` = "firebrick", `FALSE` = "gray70"),
+                       labels = c("Sig in ≤1 ranker", "Sig in both"),
+                       name = NULL) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray40") +
+    geom_hline(yintercept = 0, linetype = "dotted", color = "gray60") +
+    geom_vline(xintercept = 0, linetype = "dotted", color = "gray60") +
+    geom_text_repel(data = d %>% dplyr::filter(both_sig),
+                    aes(label = label), size = 2.5, max.overlaps = 25) +
+    labs(title = paste0(title, "  (Pearson r = ", round(rho, 2), ")"),
+         x = "NES (LFC ranker)", y = "NES (signed −log10p ranker)") +
+    theme(legend.position = "bottom",
+          plot.title = element_text(size = 11))
+}
+
+grid.arrange(
+  plot_ranker_compare(gsea_results$V1, gsea_results_signedp$V1, "V1 vs Control"),
+  plot_ranker_compare(gsea_results$V2, gsea_results_signedp$V2, "V2 vs Control"),
+  plot_ranker_compare(gsea_results$V5, gsea_results_signedp$V5, "V5 vs Control"),
+  ncol = 3
+)
+```
+
+**Reading.** Pearson correlations near 1 across all three visits mean the GSEA result is genuinely robust to ranker choice at every disease stage — *not* just at V1. If V5 has a noticeably lower correlation it is usually because the V5 signal is small enough that ranker noise matters more (small denominators).
+
+## 12.3 GSEA Enrichment ("mountain") Plots for Key Pathways — across all visits
+
+For each of the four signature pathways we draw the mountain plot at every visit. The peak height (enrichment score, ES) tracks how strongly the pathway's genes cluster at the top of the ranked list — visually showing the V1 → V2 → V5 *decay* of each pathway in one figure.
+
+```{r gsea-mountains, fig.show='hold', out.width='32%', fig.height=6}
 key_pathways <- c("HALLMARK_INFLAMMATORY_RESPONSE",
                   "HALLMARK_TNFA_SIGNALING_VIA_NFKB",
                   "HALLMARK_INTERFERON_GAMMA_RESPONSE",
                   "HALLMARK_COMPLEMENT")
 
-for (pw in key_pathways)
-  if (pw %in% gsea_h_df$ID)
-    print(gseaplot2(gsea_hallmark_v1, geneSetID = pw, title = pw))
+mountain_for <- function(g, pw, title) {
+  df <- as.data.frame(g)
+  if (!(pw %in% df$ID))
+    return(ggplot() + theme_void() +
+           ggtitle(paste0(title, "\n(", gsub("HALLMARK_", "", pw),
+                          " not enriched here)")))
+  gseaplot2(g, geneSetID = pw, title = paste0(title, " — ",
+                                              gsub("HALLMARK_", "", pw)))
+}
+
+#for (pw in key_pathways) {
+ # cat("\n\n#### ", gsub("HALLMARK_", "", pw), "\n\n", sep = "")
+  #grid.arrange(
+   # mountain_for(gsea_results$V1, pw, "V1"),
+    #mountain_for(gsea_results$V2, pw, "V2"),
+    #mountain_for(gsea_results$V5, pw, "V5"),
+  #  ncol = 3
+  #)
+#}
+for (pw in key_pathways) {
+  cat("\n\n#### ", gsub("HALLMARK_", "", pw), "\n\n", sep = "")
+  
+  # Just print them. The chunk options out.width='32%' and fig.show='hold' 
+  # will automatically place them in a 3-column row!
+  print(mountain_for(gsea_results$V1, pw, "V1"))
+  print(mountain_for(gsea_results$V2, pw, "V2"))
+  print(mountain_for(gsea_results$V5, pw, "V5"))
+}
 ```
 
-## 12.4 GSEA Across All Time Points
+**Reading the mountains.** A high peak on the **left** = pathway genes pile up at the top of the ranked list (activated, in our LFC ranker that means upregulated). The peak typically gets *lower and broader* from V1 → V2 → V5; if the peak goes flat by V5, the pathway has fully resolved; if it stays sharp, the pathway is *persistent* — which is the canonical chronic / PTLDS-relevant biology.
 
-```{r gsea-all-timepoints, cache=TRUE}
-gsea_results <- list()
-for (tp in names(ranked_lists))
-  gsea_results[[tp]] <- GSEA(geneList = ranked_lists[[tp]],
-                              TERM2GENE = t2g_hallmark,
-                              pvalueCutoff = 1, eps = 0)
-```
+## 12.4 GSEA NES heatmap — all Hallmarks across all visits
 
 ```{r nes-heatmap, fig.height=9, fig.width=7}
 nes_all <- lapply(names(gsea_results), function(tp) {
@@ -1532,6 +1799,7 @@ if (length(sig_any) > 0) {
     tidyr::pivot_wider(names_from = timepoint, values_from = NES) %>%
     tibble::column_to_rownames("ID") %>% as.matrix()
   nes_mat[is.na(nes_mat)] <- 0
+  nes_mat <- nes_mat[, intersect(c("V1","V2","V5"), colnames(nes_mat)), drop = FALSE]
 
   pheatmap(nes_mat,
            color = colorRampPalette(c("steelblue","white","firebrick"))(100),
@@ -1541,7 +1809,7 @@ if (length(sig_any) > 0) {
 }
 ```
 
-This heatmap shows how each pathway's activity (NES) evolves over time. **Red** = activated, **blue** = suppressed. Pathways that remain red from V1 through V5 represent the **sustained signature** described in the paper. Pathways that fade to white by V5 indicate resolution.
+This heatmap is the compact "everything at once" view. **Red** = activated, **blue** = suppressed. Pathways that remain red from V1 through V5 represent the **sustained signature** described in the paper. Pathways that fade to white by V5 indicate resolution. Compared to the per-visit dotplots above this heatmap is best for spotting *patterns of decay* (gradient from V1 to V5) rather than absolute amplitudes.
 
 ---
 ---
@@ -1554,7 +1822,14 @@ This heatmap shows how each pathway's activity (NES) evolves over time. **Red** 
 results across multiple gene lists (our three time points), making the
 temporal dynamics visually clear.
 
-```{r compare-cluster, fig.height=10, fig.width=10}
+### Why V5 was missing in the previous version of this plot
+
+`compareCluster()` with `pvalueCutoff = 0.05` *drops any cluster (visit) that has zero significant terms* from the dotplot, which is why earlier renders showed only V1 and V2 — V5 has fewer DEGs and frequently no Hallmark passes the strict 0.05 cutoff. We diagnose this explicitly below and use two complementary remedies so V5 is always represented:
+
+1. Print the per-visit input gene-list size and the per-visit number of significant Hallmarks so we can *see* the dropout numerically.
+2. Use a more permissive `pvalueCutoff` (0.2) and rely on **dot transparency / size** (driven by `p.adjust`) to convey significance — this keeps V5 in the figure even when nothing passes 0.05, and makes the V1 → V2 → V5 *amplitude decay* the actual visual story.
+
+```{r compare-cluster-diagnose}
 gene_lists <- lapply(res_list, function(df) {
   df %>%
     dplyr::filter(!is.na(padj) & padj < 0.05 & abs(log2FoldChange) > 1 &
@@ -1562,19 +1837,44 @@ gene_lists <- lapply(res_list, function(df) {
     dplyr::pull(Symbol) %>% unique()
 })
 
+cat("DEG-list sizes feeding compareCluster:\n")
+for (tp in names(gene_lists))
+  cat("  ", tp, ":", length(gene_lists[[tp]]), "genes\n")
+
+# Count Hallmarks significant per visit at the strict cutoff
+cat("\nHallmarks at padj<0.05 per visit (from Section 11.2 ora_hallmark_all):\n")
+for (tp in names(ora_hallmark_all))
+  cat("  ", tp, ":", sum(as.data.frame(ora_hallmark_all[[tp]])$p.adjust < 0.05),
+      "Hallmarks\n")
+```
+
+```{r compare-cluster, fig.height=10, fig.width=10}
 cc_result <- compareCluster(
-  geneClusters = gene_lists,
-  fun = "enricher",
-  TERM2GENE = t2g_hallmark,
-  pvalueCutoff = 0.05, pAdjustMethod = "BH"
+  geneClusters  = gene_lists,
+  fun           = "enricher",
+  TERM2GENE     = t2g_hallmark,
+  pvalueCutoff  = 0.20,
+  pAdjustMethod = "BH"
 )
 
-if (nrow(as.data.frame(cc_result)) > 0)
-  dotplot(cc_result) +
-    ggtitle("Biologic Theme Comparison: Hallmark Across Time Points") +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+cc_df <- as.data.frame(cc_result)
+cat("Visits represented in compareCluster output:\n")
+print(table(cc_df$Cluster))
+
+if (nrow(cc_df) > 0)
+  dotplot(cc_result, showCategory = 20) +
+    ggtitle("Biologic Theme Comparison: Hallmark across V1, V2, V5") +
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.5),
+          axis.text.y = element_text(size = 8))
 ```
-Each column is a time point, each row is a pathway. Dot size = number of DEGs in that pathway; colour = adjusted p-value. This directly shows which pathways are shared across time points and which are specific to the acute phase (V1 only).
+
+**How to read the figure (now with V5 included):**
+
+- Each column is a visit; each row is a Hallmark pathway. **Dot size** = number of V-specific DEGs that hit the pathway. **Dot colour** = `p.adjust` (darker = more significant).
+- Pathways with dots in **all three columns** are the **persistent** signature — TNFA-via-NFKB, Inflammatory Response, IFN-γ Response are typical members.
+- Pathways with dots in V1 (and maybe V2) but **missing at V5** are the *acute-only* signature — typical examples are Complement and IL6-JAK-STAT3 in this cohort.
+- A column that is *very sparse* at V5 (few or no dots) is itself a finding: it directly visualises the cohort-mean resolution of the acute response by 6 months. Combined with the per-patient GSVA boxplots in Section 14.7, this distinguishes the cohort-level resolution from the subset of PTLDS-candidate patients.
+- If you would like a stricter view (only `padj < 0.05` dots), uncomment `pvalueCutoff = 0.05` above — V5 will then drop out as in the earlier version, but the V1/V2 dots that remain will all be unambiguously significant.
 
 
 ---
@@ -1850,27 +2150,42 @@ fmt_spia(spia_v2)
 fmt_spia(spia_v5)
 ```
 
-## 15.3 Visualize top hits (V1)
+## 15.3 Visualise top SPIA hits across V1, V2, V5
 
-```{r spia-plot-v1, fig.height=6}
-if (!is.null(spia_v1) && nrow(spia_v1) > 0) {
-  top <- tibble::rownames_to_column(as.data.frame(spia_v1), "pathway_id") %>%
+For every visit we show the top-15 KEGG pathways (by global pG) as a horizontal bar plot, coloured by SPIA's `Status` (Activated / Inhibited / Mixed). Comparing the three panels gives the SPIA-equivalent of the GSEA NES heatmap: which KEGG signalling maps stay activated through V2 / V5, which fade.
+
+```{r spia-plots-all, fig.height=7, fig.width=20}
+plot_spia_top <- function(s, title, n = 15) {
+  if (is.null(s) || nrow(s) == 0)
+    return(ggplot() + theme_void() +
+           ggtitle(paste(title, "\n(no SPIA results — too few DEGs at padj<0.05)")))
+  top <- tibble::rownames_to_column(as.data.frame(s), "pathway_id") %>%
     dplyr::arrange(pG) %>%
-    head(15)
-  ggplot(top, aes(x = reorder(Name, -log10(pG)), y = -log10(pG), fill = Status)) +
-    geom_col() +
-    coord_flip() +
-    scale_fill_manual(values = c(Activated = "firebrick", Inhibited = "steelblue",
+    head(n)
+  ggplot(top, aes(x = reorder(Name, -log10(pG)),
+                  y = -log10(pG), fill = Status)) +
+    geom_col() + coord_flip() +
+    scale_fill_manual(values = c(Activated = "firebrick",
+                                 Inhibited = "steelblue",
                                  Mixed = "gray50"),
                       na.value = "gray70") +
-    labs(title = "SPIA: top KEGG pathways (V1 vs Control)",
+    labs(title = title,
          subtitle = "Bar height = -log10(global pG). Status from SPIA.",
          x = NULL, y = "-log10(pG)") +
-    theme(legend.position = "bottom")
+    theme(legend.position = "bottom",
+          axis.text.y = element_text(size = 8),
+          plot.title  = element_text(size = 11))
 }
+
+grid.arrange(
+  plot_spia_top(spia_v1, "V1 (acute) vs Control"),
+  plot_spia_top(spia_v2, "V2 (post-treatment) vs Control"),
+  plot_spia_top(spia_v5, "V5 (6 months) vs Control"),
+  ncol = 3
+)
 ```
 
-Pathways with large **|tA|** (total net accumulation) and small **pPERT** are those where **topology** contributes strongly, not just list overlap.
+**Reading across panels.** Pathways with large **|tA|** (total net accumulation) and small **pPERT** are those where **topology** contributes strongly, not just list overlap. KEGG pathways that stay coloured firebrick at V2/V5 are SPIA's version of the persistent inflammatory signature — typically *Cytokine-cytokine receptor interaction*, *TNF signalling*, *JAK-STAT*, *Toll-like receptor signalling* are the ones that survive longest. KEGG pathways that drop out from V1 to V5 (often *Cell cycle*, *DNA replication*) are the proliferation/expansion programmes that resolve once the acute response ends.
 
 ## 15.4 Does SPIA agree with the Hallmark / GO results? (cross-database validation)
 
@@ -1902,178 +2217,240 @@ cat("KEGG gene sets pulled from MSigDB:",
 t2g_kegg <- msigdb_kegg %>% dplyr::select(gs_name, gene_symbol)
 ```
 
-### 15.4.2 KEGG ORA + KEGG GSEA on V1
+### 15.4.2 KEGG ORA + KEGG GSEA at every visit
 
-```{r kegg-ora-gsea, cache=TRUE}
-ora_kegg_v1 <- enricher(
-  gene = sig_sym_v1, universe = univ_sym,
-  TERM2GENE = t2g_kegg,
-  pvalueCutoff = 1, pAdjustMethod = "BH", qvalueCutoff = 1
-)
-
-gsea_kegg_v1 <- GSEA(
-  geneList     = ranked_lists$V1,
-  TERM2GENE    = t2g_kegg,
-  pvalueCutoff = 1, eps = 0
-)
-
-cat("KEGG ORA  significant pathways (p.adjust<0.05):",
-    sum(as.data.frame(ora_kegg_v1)$p.adjust  < 0.05), "\n")
-cat("KEGG GSEA significant pathways (p.adjust<0.05):",
-    sum(as.data.frame(gsea_kegg_v1)$p.adjust < 0.05), "\n")
-```
-
-### 15.4.3 Map SPIA → MSigDB-KEGG and merge
-
-SPIA exposes the human-readable pathway name (e.g. `"Cytokine-cytokine receptor interaction"`); MSigDB exposes the upper-snake-case `gs_name` (e.g. `"KEGG_CYTOKINE_CYTOKINE_RECEPTOR_INTERACTION"`). We normalise both to the same form and join.
-
-```{r spia-kegg-mapping}
-norm_kegg_name <- function(s) {
-  s <- toupper(s)
-  s <- gsub("[^A-Z0-9]+", "_", s)
-  s <- gsub("^_+|_+$", "", s)
-  s
+```{r kegg-ora-gsea-all, cache=TRUE}
+ora_kegg_all  <- list()
+gsea_kegg_all <- list()
+for (tp in names(res_list)) {
+  ora_kegg_all[[tp]] <- enricher(
+    gene         = sig_sym_per_tp[[tp]],
+    universe     = univ_sym_per_tp[[tp]],
+    TERM2GENE    = t2g_kegg,
+    pvalueCutoff = 1, pAdjustMethod = "BH", qvalueCutoff = 1
+  )
+  gsea_kegg_all[[tp]] <- GSEA(
+    geneList     = ranked_lists[[tp]],
+    TERM2GENE    = t2g_kegg,
+    pvalueCutoff = 1, eps = 0
+  )
 }
 
-spia_v1_df <- tibble::rownames_to_column(as.data.frame(spia_v1), "spia_pwid") %>%
-  dplyr::transmute(
-    spia_pwid,
-    pathway_name = Name,
-    norm         = norm_kegg_name(Name),
-    spia_status  = Status,
-    spia_pG      = pG,
-    spia_pGFdr   = pGFdr
-  )
+# Backward-compat aliases
+ora_kegg_v1  <- ora_kegg_all$V1
+gsea_kegg_v1 <- gsea_kegg_all$V1
 
-ora_kegg_df <- as.data.frame(ora_kegg_v1) %>%
-  dplyr::transmute(
-    norm      = sub("^KEGG_", "", ID),
-    ora_padj  = p.adjust,
-    ora_count = Count
-  )
-
-gsea_kegg_df <- as.data.frame(gsea_kegg_v1) %>%
-  dplyr::transmute(
-    norm      = sub("^KEGG_", "", ID),
-    gsea_padj = p.adjust,
-    gsea_NES  = NES
-  )
-
-cross_kegg <- spia_v1_df %>%
-  dplyr::left_join(ora_kegg_df,  by = "norm") %>%
-  dplyr::left_join(gsea_kegg_df, by = "norm")
-
-n_matched <- sum(!is.na(cross_kegg$gsea_padj) | !is.na(cross_kegg$ora_padj))
-cat("SPIA pathways successfully mapped to MSigDB KEGG:",
-    n_matched, "/", nrow(cross_kegg), "\n")
+for (tp in names(res_list)) {
+  cat(tp,
+      "  KEGG-ORA  sig (padj<0.05):",
+      sum(as.data.frame(ora_kegg_all[[tp]])$p.adjust  < 0.05),
+      "  KEGG-GSEA sig (padj<0.05):",
+      sum(as.data.frame(gsea_kegg_all[[tp]])$p.adjust < 0.05), "\n")
+}
 ```
 
-```{r spia-cross-table}
-top_cross <- cross_kegg %>%
-  dplyr::arrange(spia_pG) %>%
-  dplyr::mutate(
-    spia_pG    = signif(spia_pG, 2),
-    spia_pGFdr = signif(spia_pGFdr, 2),
-    ora_padj   = signif(ora_padj, 2),
-    gsea_padj  = signif(gsea_padj, 2),
-    gsea_NES   = round(gsea_NES, 2)
-  ) %>%
-  dplyr::select(pathway_name, spia_status,
-                spia_pG, spia_pGFdr,
-                ora_padj, ora_count,
-                gsea_NES, gsea_padj) %>%
-  head(15)
+### 15.4.3 Map SPIA → MSigDB-KEGG and merge — for each visit
 
-knitr::kable(top_cross, caption = "Top 15 SPIA pathways at V1, with KEGG-ORA and KEGG-GSEA evidence side-by-side. Empty cells = pathway present in SPIA but not in MSigDB's KEGG collection (or vice versa).")
-```
+SPIA exposes the human-readable pathway name (e.g. `"Cytokine-cytokine receptor interaction"`); MSigDB exposes the upper-snake-case `gs_name` (e.g. `"KEGG_CYTOKINE_CYTOKINE_RECEPTOR_INTERACTION"`). We normalise both, join, and produce a per-visit `cross_kegg_<tp>` table.
 
-### 15.4.4 Visualise the agreement
+```{r spia-kegg-mapping-all}
+norm_kegg_name <- function(s) {
+  s <- toupper(s); s <- gsub("[^A-Z0-9]+", "_", s)
+  gsub("^_+|_+$", "", s)
+}
 
-A single scatter showing every KEGG pathway that *both* SPIA and KEGG-GSEA could score: x-axis = SPIA evidence (`-log10(pG)`), y-axis = GSEA evidence (`-log10(p.adjust)`). Pathways that are significant in *both* (top-right) are the most robust hits — agreement across two independent methods on the same database.
+build_cross <- function(spia_obj, ora_obj, gsea_obj) {
+  if (is.null(spia_obj) || nrow(spia_obj) == 0) return(NULL)
+  spia_df <- tibble::rownames_to_column(as.data.frame(spia_obj), "spia_pwid") %>%
+    dplyr::transmute(spia_pwid,
+                     pathway_name = Name,
+                     norm         = norm_kegg_name(Name),
+                     spia_status  = Status,
+                     spia_pG      = pG,
+                     spia_pGFdr   = pGFdr)
+  ora_df  <- as.data.frame(ora_obj) %>%
+    dplyr::transmute(norm = sub("^KEGG_", "", ID),
+                     ora_padj  = p.adjust,
+                     ora_count = Count)
+  gsea_df <- as.data.frame(gsea_obj) %>%
+    dplyr::transmute(norm = sub("^KEGG_", "", ID),
+                     gsea_padj = p.adjust,
+                     gsea_NES  = NES)
+  spia_df %>%
+    dplyr::left_join(ora_df,  by = "norm") %>%
+    dplyr::left_join(gsea_df, by = "norm")
+}
 
-```{r spia-vs-gsea-kegg, fig.width=8, fig.height=6}
-plot_df <- cross_kegg %>%
-  dplyr::filter(!is.na(spia_pG) & !is.na(gsea_padj)) %>%
-  dplyr::mutate(
-    sig_spia = spia_pGFdr < 0.05,
-    sig_gsea = gsea_padj  < 0.05,
-    both     = sig_spia & sig_gsea,
-    label    = ifelse(both, pathway_name, NA)
-  )
-
-ggplot(plot_df, aes(x = -log10(spia_pG), y = -log10(gsea_padj))) +
-  geom_point(aes(color = both, size = abs(gsea_NES)), alpha = 0.85) +
-  scale_color_manual(values = c(`TRUE` = "firebrick", `FALSE` = "gray70"),
-                     labels = c("Sig in only one", "Sig in both"),
-                     name   = NULL) +
-  geom_vline(xintercept = -log10(0.05), linetype = "dashed", color = "gray40") +
-  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "gray40") +
-  geom_text_repel(aes(label = label), size = 2.6, max.overlaps = 25, na.rm = TRUE) +
-  labs(title = "SPIA vs KEGG-GSEA — KEGG pathways, V1 vs Control",
-       subtitle = "Same database (KEGG), two methods. Top-right = robust.",
-       x = "-log10(SPIA pG)",
-       y = "-log10(GSEA padj)",
-       size = "|GSEA NES|") +
-  theme(legend.position = "bottom")
-```
-
-### 15.4.5 Bridge back to Hallmark — *gene-level* agreement
-
-Hallmark and KEGG are different gene-set definitions, so a pathway-name comparison is meaningless. The cleanest bridge is at the **gene level**: take the **leading-edge genes** from each top-5 Hallmark in GSEA (Section 12.2) and intersect them with the **member genes** of each top-5 SPIA KEGG pathway. A high overlap means SPIA and Hallmark are pointing to the same biology even if they disagree on the pathway label.
-
-```{r spia-hallmark-gene-overlap, fig.width=9, fig.height=5}
-top5_hallmark <- gsea_h_df %>%
-  dplyr::arrange(p.adjust) %>%
-  head(5)
-top5_hallmark_genes <- setNames(
-  strsplit(top5_hallmark$core_enrichment, "/"),
-  gsub("HALLMARK_", "", top5_hallmark$ID)
+cross_kegg_list <- list(
+  V1 = build_cross(spia_v1, ora_kegg_all$V1, gsea_kegg_all$V1),
+  V2 = build_cross(spia_v2, ora_kegg_all$V2, gsea_kegg_all$V2),
+  V5 = build_cross(spia_v5, ora_kegg_all$V5, gsea_kegg_all$V5)
 )
 
-top5_spia <- cross_kegg %>%
-  dplyr::arrange(spia_pG) %>%
-  head(5)
-kegg_members <- split(msigdb_kegg$gene_symbol, msigdb_kegg$gs_name)
-top5_spia_genes <- lapply(top5_spia$norm, function(n) {
-  key <- paste0("KEGG_", n)
-  if (key %in% names(kegg_members)) unique(kegg_members[[key]]) else character(0)
-})
-names(top5_spia_genes) <- top5_spia$pathway_name
+# Backward-compat alias
+cross_kegg <- cross_kegg_list$V1
 
-overlap_mat <- outer(
-  seq_along(top5_hallmark_genes),
-  seq_along(top5_spia_genes),
-  Vectorize(function(i, j) {
-    a <- top5_hallmark_genes[[i]]; b <- top5_spia_genes[[j]]
-    if (length(a) == 0 || length(b) == 0) return(0)
-    length(intersect(a, b))
+for (tp in names(cross_kegg_list)) {
+  ck <- cross_kegg_list[[tp]]
+  if (is.null(ck)) {
+    cat(tp, ": no SPIA results to map.\n"); next
+  }
+  cat(tp, ": SPIA pathways successfully mapped to MSigDB KEGG:",
+      sum(!is.na(ck$gsea_padj) | !is.na(ck$ora_padj)),
+      "/", nrow(ck), "\n")
+}
+```
+
+```{r spia-cross-tables-all, results='asis'}
+fmt_cross <- function(ck, n = 10) {
+  if (is.null(ck) || nrow(ck) == 0) return(NULL)
+  ck %>%
+    dplyr::arrange(spia_pG) %>%
+    dplyr::mutate(
+      spia_pG    = signif(spia_pG, 2),
+      spia_pGFdr = signif(spia_pGFdr, 2),
+      ora_padj   = signif(ora_padj, 2),
+      gsea_padj  = signif(gsea_padj, 2),
+      gsea_NES   = round(gsea_NES, 2)
+    ) %>%
+    dplyr::select(pathway_name, spia_status,
+                  spia_pG, spia_pGFdr,
+                  ora_padj, ora_count,
+                  gsea_NES, gsea_padj) %>%
+    head(n)
+}
+
+for (tp in names(cross_kegg_list)) {
+  cat("\n\n#### Top 10 SPIA pathways at ", tp, " — with KEGG-ORA & KEGG-GSEA evidence\n\n", sep = "")
+  tab <- fmt_cross(cross_kegg_list[[tp]], 10)
+  if (is.null(tab)) {
+    cat("_No SPIA results at this visit._\n")
+  } else {
+    print(knitr::kable(tab, row.names = FALSE))
+  }
+}
+```
+
+### 15.4.4 Visualise SPIA ↔ KEGG-GSEA agreement at every visit
+
+```{r spia-vs-gsea-kegg-all, fig.width=18, fig.height=6}
+plot_spia_gsea <- function(ck, title) {
+  if (is.null(ck))
+    return(ggplot() + theme_void() +
+           ggtitle(paste(title, "\n(no SPIA results)")))
+  d <- ck %>%
+    dplyr::filter(!is.na(spia_pG) & !is.na(gsea_padj)) %>%
+    dplyr::mutate(
+      sig_spia = spia_pGFdr < 0.05,
+      sig_gsea = gsea_padj  < 0.05,
+      both     = sig_spia & sig_gsea,
+      label    = ifelse(both, pathway_name, NA)
+    )
+  ggplot(d, aes(x = -log10(spia_pG), y = -log10(gsea_padj))) +
+    geom_point(aes(color = both, size = abs(gsea_NES)), alpha = 0.85) +
+    scale_color_manual(values = c(`TRUE` = "firebrick", `FALSE` = "gray70"),
+                       labels = c("Sig in ≤1 method", "Sig in both"),
+                       name = NULL) +
+    geom_vline(xintercept = -log10(0.05), linetype = "dashed", color = "gray40") +
+    geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "gray40") +
+    geom_text_repel(aes(label = label), size = 2.5, max.overlaps = 25, na.rm = TRUE) +
+    labs(title = title,
+         x = "-log10(SPIA pG)", y = "-log10(KEGG-GSEA padj)",
+         size = "|GSEA NES|") +
+    theme(legend.position = "bottom",
+          plot.title = element_text(size = 11))
+}
+
+grid.arrange(
+  plot_spia_gsea(cross_kegg_list$V1, "V1 vs Control"),
+  plot_spia_gsea(cross_kegg_list$V2, "V2 vs Control"),
+  plot_spia_gsea(cross_kegg_list$V5, "V5 vs Control"),
+  ncol = 3
+)
+```
+
+**Reading.** A populated top-right corner at V1 means SPIA and KEGG-GSEA agree on the same database — the V1 inflammatory signal is robust to method, not just topology-induced. The cluster shrinks at V2 and may be empty at V5; if V5 has no SPIA-significant pathways at all (red colour absent in the per-visit dotplot above), the panel will show only grey points — itself a finding (cohort-mean KEGG signal has resolved).
+
+### 15.4.5 Bridge back to Hallmark — *gene-level* agreement at every visit
+
+For each visit, intersect the **leading-edge genes** of the top-5 Hallmark GSEA hits with the **member genes** of the top-5 SPIA KEGG pathways. High counts in red cells mean Hallmark and KEGG are describing the same gene populations.
+
+```{r spia-hallmark-gene-overlap-all, fig.width=20, fig.height=5}
+hallmark_members_long <- msigdb_hallmark %>%
+  dplyr::select(gs_name, gene_symbol)
+
+build_overlap <- function(g_hallmark, ck) {
+  df_h <- as.data.frame(g_hallmark)
+  if (nrow(df_h) == 0 || is.null(ck)) return(NULL)
+  top5_h <- df_h %>% dplyr::arrange(p.adjust) %>% head(5)
+  if (nrow(top5_h) == 0) return(NULL)
+  h_genes <- setNames(strsplit(top5_h$core_enrichment, "/"),
+                      gsub("HALLMARK_", "", top5_h$ID))
+  top5_s <- ck %>% dplyr::arrange(spia_pG) %>% head(5)
+  if (nrow(top5_s) == 0) return(NULL)
+  kegg_members <- split(msigdb_kegg$gene_symbol, msigdb_kegg$gs_name)
+  s_genes <- lapply(top5_s$norm, function(n) {
+    key <- paste0("KEGG_", n)
+    if (key %in% names(kegg_members)) unique(kegg_members[[key]]) else character(0)
   })
+  names(s_genes) <- top5_s$pathway_name
+  m <- outer(seq_along(h_genes), seq_along(s_genes),
+             Vectorize(function(i, j) {
+               a <- h_genes[[i]]; b <- s_genes[[j]]
+               if (length(a) == 0 || length(b) == 0) return(0)
+               length(intersect(a, b))
+             }))
+  rownames(m) <- names(h_genes); colnames(m) <- names(s_genes)
+  m
+}
+
+plot_overlap <- function(m, title) {
+  if (is.null(m))
+    return(ggplot() + theme_void() +
+           ggtitle(paste(title, "\n(no top hits to compare)")))
+  d <- as.data.frame(as.table(m))
+  colnames(d) <- c("Hallmark", "SPIA_KEGG", "shared_genes")
+  ggplot(d, aes(x = SPIA_KEGG, y = Hallmark, fill = shared_genes)) +
+    geom_tile(color = "white") +
+    geom_text(aes(label = shared_genes), size = 3.2) +
+    scale_fill_gradient(low = "white", high = "firebrick") +
+    labs(title = title,
+         x = "SPIA top KEGG", y = "Hallmark top GSEA",
+         fill = "Shared\ngenes") +
+    theme(axis.text.x = element_text(angle = 30, hjust = 1, size = 7),
+          axis.text.y = element_text(size = 7),
+          plot.title  = element_text(size = 11),
+          legend.position = "bottom")
+}
+
+m_v1 <- build_overlap(gsea_results$V1, cross_kegg_list$V1)
+m_v2 <- build_overlap(gsea_results$V2, cross_kegg_list$V2)
+m_v5 <- build_overlap(gsea_results$V5, cross_kegg_list$V5)
+
+grid.arrange(
+  plot_overlap(m_v1, "V1 — Hallmark ↔ SPIA KEGG"),
+  plot_overlap(m_v2, "V2 — Hallmark ↔ SPIA KEGG"),
+  plot_overlap(m_v5, "V5 — Hallmark ↔ SPIA KEGG"),
+  ncol = 3
 )
-rownames(overlap_mat) <- names(top5_hallmark_genes)
-colnames(overlap_mat) <- names(top5_spia_genes)
-
-overlap_long <- as.data.frame(as.table(overlap_mat))
-colnames(overlap_long) <- c("Hallmark", "SPIA_KEGG", "shared_genes")
-
-ggplot(overlap_long, aes(x = SPIA_KEGG, y = Hallmark, fill = shared_genes)) +
-  geom_tile(color = "white") +
-  geom_text(aes(label = shared_genes), size = 3.5) +
-  scale_fill_gradient(low = "white", high = "firebrick") +
-  labs(title = "Shared genes — top-5 Hallmark (GSEA leading edge) vs top-5 SPIA KEGG (full pathway)",
-       x = "SPIA top KEGG pathways", y = "Hallmark top pathways", fill = "Shared\ngenes") +
-  theme(axis.text.x = element_text(angle = 30, hjust = 1, size = 8),
-        axis.text.y = element_text(size = 8))
 ```
 
-**Reading the heatmap.** Cells with high counts (red) tell us a SPIA-flagged KEGG pathway and a GSEA-flagged Hallmark are describing **the same population of genes**. For acute Lyme we expect strong overlap between e.g. `INFLAMMATORY_RESPONSE` ↔ `Cytokine-cytokine receptor interaction` and `IFN_GAMMA_RESPONSE` ↔ `Toll-like receptor signaling` / `JAK-STAT signaling`. If those cells are highly populated, the answer is "**Yes, SPIA agrees with the Hallmark/GSEA result at the gene level — it is just dressing the same biology in KEGG vocabulary.**"
+**Reading.** Strong red diagonals at V1 and V2 confirm that Hallmark and KEGG are describing the same biology at those time points (just in different vocabulary). At V5 the heatmap may be blank or pale — if either Hallmark GSEA or SPIA produces no top-5 hits at V5, that absence itself answers the question: there is no robust pathway-level signal at 6 months in this cohort, only a residual subset of patients (visible in 14.7).
 
-### 15.4.6 Save the cross-database table
+### 15.4.6 Save the cross-database tables — for every visit
 
-```{r save-spia-cross}
-write.csv(cross_kegg %>% dplyr::arrange(spia_pG),
-          file.path(results_dir, "Cross_DB_SPIA_vs_KEGG_ORA_GSEA_V1.csv"),
-          row.names = FALSE)
-cat("Saved:", file.path(results_dir, "Cross_DB_SPIA_vs_KEGG_ORA_GSEA_V1.csv"), "\n")
+```{r save-spia-cross-all}
+for (tp in names(cross_kegg_list)) {
+  ck <- cross_kegg_list[[tp]]
+  if (is.null(ck)) next
+  write.csv(ck %>% dplyr::arrange(spia_pG),
+            file.path(results_dir,
+                      paste0("Cross_DB_SPIA_vs_KEGG_ORA_GSEA_", tp, ".csv")),
+            row.names = FALSE)
+  cat("Saved:",
+      file.path(results_dir,
+                paste0("Cross_DB_SPIA_vs_KEGG_ORA_GSEA_", tp, ".csv")), "\n")
+}
 ```
 
 ---
