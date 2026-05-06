@@ -1455,9 +1455,9 @@ plot_gobp_dotplot <- function(ora_obj, title, n = 15) {
     dplyr::arrange(p.adjust) %>%
     head(n) %>%
     dplyr::mutate(
-      Description = ifelse(nchar(Description) > 55,
-                           paste0(substr(Description, 1, 52), "..."),
-                           Description))
+      # Overwrite Description with ID so dotplot uses the unique name instead of description
+      Description = ID
+    )
   dotplot(top, showCategory = n) +
     ggtitle(title) +
     theme(axis.text.y = element_text(size = 7),
