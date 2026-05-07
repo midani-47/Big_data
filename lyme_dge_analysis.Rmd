@@ -60,7 +60,7 @@ Lyme disease is a tick-borne infection caused by *Borrelia burgdorferi*. It can 
   understanding why some V5 patients still have elevated inflammatory
   pathways while others recover fully.
 - All tools are open-source and reproducible (vs. IPA).
-- **SPIA (3rd gen)** highlights KEGG pathways where both **gene list enrichment** and **signed topology** suggest activation or inhibition — a different lens from MSigDB Hallmark.
+- **SPIA (3rd gen)** highlights KEGG pathways where both **gene list enrichment** and **signed topology** suggest activation or inhibition, a different lens from MSigDB Hallmark.
 
 
 
@@ -163,7 +163,7 @@ cat("Counts matrix:", nrow(counts_raw), "genes x", ncol(counts_raw), "samples\n"
 
 This maps NCBI Entrez Gene IDs to gene symbols, biotypes, chromosomal locations, and GO terms.
 
-NCBI Entrez as the "Google Search" engine for biological data. It’s a massive integrated system managed by the National Center for Biotechnology Information (NCBI) that links together different databases—DNA sequences, protein structures, and medical literature (PubMed).
+NCBI Entrez as the "Google Search" engine for biological data. It’s a massive integrated system managed by the National Center for Biotechnology Information (NCBI) that links together different databases, DNA sequences, protein structures, and medical literature (PubMed).
 According to online sources, when we see an Entrez ID (like those numbers in your matrix), it’s a unique "social security number" for a gene. Names (Symbols) change as scientists argue, but Entrez IDs stay the same.
 
 ```{r load-gene-annot}
@@ -211,8 +211,7 @@ sample_annot <- read.csv(
 ## 2.4 Align Samples
 
 22 samples from the annotation are absent from the counts matrix.
-The reason is not confirmed -- ask Thomas whether they were excluded
-during re-alignment or simply not processed.
+The reason is not confirmed.
 
 ```{r align-data}
 shared     <- intersect(colnames(counts_raw), sample_annot$GSM)
@@ -361,8 +360,7 @@ lib_summary <- lib_sizes %>%
 print(lib_summary)
 ```
 
-**Interpretation.** The visual imbalance reflects real depth differences
-across the cohort, but **the imbalance is fully handled downstream**:
+The visual imbalance reflects real depth differences across the group, but **the imbalance is fully handled downstream**:
 
 1. **Section 7.2** estimates DESeq2 size factors via median-of-ratios
    (Anders & Huber 2010) — these scale each sample's counts to a common
@@ -451,8 +449,7 @@ ggplot(log2_long, aes(x = log2_count, group = GSM, color = group)) +
 ```
 
 the large spike near zero represents the many genes
-with zero or very low expression. Most of them are still there because we haven't filtered out the garbage yet. The second hump (should be around 5-10) represents actively expressed genes. What we are looking for looks flat because the scale is zoomed out to accommodate the zero spike. All samples should have a similar shape; if
-one looks radically different, it may be a quality outlier. Perhaps, we should make a similar plot after filtering.
+with zero or very low expression. Most of them are still there because we haven't filtered out the garbage yet. The second hump (should be around 5-10) represents actively expressed genes. What we are looking for looks flat because the scale is zoomed out to accommodate the zero spike. All samples should have a similar shape: if one looks radically different, it may be a quality outlier. Perhaps, we should make a similar plot after filtering.
 
 ## 5.2 Mean-Variance Relationship
 
@@ -579,7 +576,7 @@ Size factor and library size are strongly correlated (expected).
 Samples with a size factor < 1 were sequenced less deeply; > 1 means more deeply. 
 DESeq2 divides each sample's counts by its size factor during analysis, so the apparent depth imbalance from Section 4.1 has no effect on the downstream DE tests. The MA plots in **Sections 7.3 and 10.1a** confirm visually that the bulk of genes settles around log fold-change = 0 after this correction.
 
-> **Note on dataset variability.** A wide spread of size factors *and* a strong group separation in PCA (Section 8) together indicate that the dataset has substantial **between-sample variability**. This is biologically expected — the cohort is a mix of healthy controls, acute Lyme, post-treatment, and 6-month follow-up patients with heterogeneous immune trajectories. The negative-binomial **dispersion** estimated by DESeq2 (visualised in Section 10.1b) absorbs this variability, which is why DESeq2 typically gives more conservative (and more reliable) p-values than naive Limma/Voom on FPKM in noisy clinical data.
+> **Note on dataset variability.** A wide spread of size factors *and* a strong group separation in PCA (Section 8) together indicate that the dataset has substantial **between-sample variability**. This is biologically expected, the cohort is a mix of healthy controls, acute Lyme, post-treatment, and 6-month follow-up patients with heterogeneous immune trajectories. The negative-binomial **dispersion** estimated by DESeq2 (visualised in Section 10.1b) absorbs this variability, which is why DESeq2 typically gives more conservative (and more reliable) p-values than naive Limma/Voom on FPKM in noisy clinical data.
 
 ## 7.3 MA Plot (after size-factor normalization)
 
@@ -663,7 +660,7 @@ if (mean_sd_after < mean_sd_before) {
 }
 ```
 
-A **positive** reduction (before − after > 0) means VST did its job. A typical drop is from ~0.7–0.9 (raw log2) to ~0.2–0.5 (after VST); the residual coupling is normal — VST is an approximation, not a guarantee of zero correlation. Confirm with Thomas if the reduction is small (<0.1) or if VST made things worse, in which case `rlog()` may be preferable for this dataset.
+A **positive** reduction (before − after > 0) means VST did its job. A typical drop is from ~0.7–0.9 (raw log2) to ~0.2–0.5 (after VST); the residual coupling is normal, VST is an approximation, not a guarantee of zero correlation. Confirm with Thomas if the reduction is small (<0.1) or if VST made things worse, in which case `rlog()` may be preferable for this dataset.
 
 
 ---
@@ -717,13 +714,6 @@ grid.arrange(
 )
 ```
 
-**According to online sources:** Look for how well the four groups separate.
-**PC1** (largest variance axis) typically separates disease from
-control. If V1 (acute Lyme) clusters distinctly from controls, it
-confirms that infection drives a strong transcriptomic shift. V5 samples
-sitting closer to controls suggests partial recovery of gene expression
-by 6 months -- consistent with the original paper's finding that the
-signature *persists* but *weakens*.
 
 ## 8.3 Patient Trajectories
 
@@ -748,8 +738,7 @@ ggplot() +
        y = paste0("PC2 (", var_pct[2], "%)"))
 ```
 
-Each line represents one patient's journey from acute infection (red V1) through treatment (orange V2) to 6-month
-follow-up (blue V5). Reassuringly, most V5 points move toward the gray control cloud, showing recovery. Patients whose V5 stays far from controls are the ones to worry about — they are likely candidates for **post-treatment Lyme disease syndrome (PTLDS)**.
+Each line represents one patient's journey from acute infection (red V1) through treatment (orange V2) to 6-month follow-up (blue V5). Reassuringly, most V5 points move toward the gray control cloud, showing recovery. Patients whose V5 stays far from controls are the ones to worry about, they are likely candidates for **post-treatment Lyme disease syndrome (PTLDS)**.
 
 ---
 ---
@@ -795,8 +784,7 @@ pheatmap(t(scale(t(hm_mat))),
          cutree_cols = 4)
 ```
 
-Rows are genes, columns are samples. Red = high expression, blue = low expression (relative to the gene's mean). If the
-heatmap clusters samples by group (check the colour bar at top), it confirms that the dominant source of variation is biological (disease state / time point), not technical noise.
+Rows are genes, columns are samples. Red = high expression, blue = low expression (relative to the gene's mean). If the heatmap clusters samples by group (check the colour bar at top), it confirms that the dominant source of variation is biological (disease state / time point), not technical noise.
 
 ---
 ---
@@ -812,7 +800,7 @@ dds <- DESeq(dds)
 resultsNames(dds)
 ```
 
-## 10.1a Dispersion estimates — *quantifying how variant the dataset is*
+## 10.1a Dispersion estimates (*quantifying how variant the dataset is*)
 
 The single best diagnostic for "is this dataset noisy?" is the **dispersion plot**. DESeq2 fits a gene-wise dispersion (black dots), shrinks each estimate towards a fitted trend (red curve), and uses the shrunken values (blue) for testing. The y-axis is the **dispersion parameter α** of the negative binomial, which captures biological + technical variability *beyond* Poisson noise.
 
@@ -820,9 +808,9 @@ The single best diagnostic for "is this dataset noisy?" is the **dispersion plot
 plotDispEsts(dds, main = "DESeq2 Dispersion Estimates")
 ```
 
-**How to read this for our cohort:**
 
-- The fitted (red) trend should slope **down** as expression increases, then flatten — that is the textbook shape and indicates the model assumptions hold.
+
+- The fitted (red) trend should slope **down** as expression increases, then flatten, that is the textbook shape and indicates the model assumptions hold.
 - If many gene-wise dots sit **far above** the fitted line, the dataset is **highly variable** (lots of biological / between-patient noise). For our Lyme cohort this is expected: patients are sampled at different disease stages, with heterogeneous immune trajectories, and individual variation in the inflammatory response is well known. A median dispersion of ~0.05–0.1 is typical for clean cell-line RNA-seq; values of ~0.2–0.5 are typical for human PBMC studies like this one.
 - Genes flagged as outliers (circled) are pulled down to the fitted curve by `lfcShrink()` (Section 10.2), which is precisely why we use shrunken LFCs.
 
@@ -834,7 +822,7 @@ cat("\nMedian dispersion:", round(median(disp, na.rm = TRUE), 3),
     "  (PBMC studies typically 0.1–0.5)\n")
 ```
 
-**Practical takeaway.** A relatively high median dispersion confirms what the wide library sizes (Section 4.1) and the spread of PCA points (Section 8) already hinted at: this is a **biologically noisy clinical dataset**, not a clean cell-line experiment. DESeq2's shrinkage absorbs that noise; downstream DE calls are correspondingly conservative, which is why we report fewer DEGs than the original 2016 paper.
+**Practical takeaway.** A relatively high median dispersion confirms what the wide library sizes (Section 4.1) and the spread of PCA points (Section 8) already hinted at: this is a **biologically noisy clinical dataset**, not a clean cell-line experiment. DESeq2's shrinkage absorbs that noise. Downstream DE calls are correspondingly conservative, which is why we report fewer DEGs than the original 2016 paper.
 
 ## 10.1b MA plots (DESeq2: normalized mean vs LFC)
 
@@ -858,8 +846,7 @@ par(mfrow = c(1, 1))
 
 ## 10.2 Extract, Shrink & Annotate Results
 
-`lfcShrink()` with `ashr` produces moderated log2 fold-change estimates
-that are more reliable for genes with low counts. *(Stephens 2016)*
+`lfcShrink()` with `ashr` produces moderated log2 fold-change estimates that are more reliable for genes with low counts. *(Stephens 2016)*
 
 ```{r extract-results}
 contrasts <- list(
@@ -903,9 +890,13 @@ print(deg_summary)
 
 Compare with the original study (Limma/Voom on FPKM): V1=1,235, V2=1,060, V5=686 DEGs. 
 Not a 100% sure why our numbers differ, but I assume it's because we use: 
-(1) a different genome reference, 
-(2) raw counts instead of FPKM,
-(3) DESeq2 instead of Limma/Voom, and (4) different fold-change/FDR thresholds. \n 
+
+(1) a different genome reference
+
+(2) raw counts instead of FPKM
+
+(3) DESeq2 instead of Limma/Voom, and (4) different fold-change/FDR thresholds.
+
 The pattern should be similar: most DEGs at V1 (acute), declining through V2 and V5 as the transcriptome partially recovers.
 
 ## 10.4 Top DEGs across all time points
@@ -926,7 +917,7 @@ for (tp in names(res_list)) {
 }
 ```
 
-**Reading.** Compare the *same* top genes across the three tables. *S100A8 / S100A9*, *FCGR1A*, *CXCL10*, the IFN-stimulated genes (*IFI27*, *ISG15*, *RSAD2*, *OAS*) and the proliferation cluster (*MKI67*, *TOP2A*, *RRM2*) tend to reappear with progressively smaller LFCs from V1 → V2 → V5, which is the gene-level expression of the "persistent but resolving" signature. Genes that *only* appear at V5 (rather than carrying over from V1) are typically related to homeostasis / repair and are interesting to flag separately.
+Genes that *only* appear at V5 (rather than carrying over from V1) are typically related to homeostasis / repair and are interesting to flag separately.
 
 ## 10.5 Volcano Plots
 
@@ -958,11 +949,13 @@ grid.arrange(
 )
 ```
 
-Each dot is a gene. The x-axis is the fold change (how much the gene changes in Lyme vs. Control); the y-axis is statistical significance. **Red dots** (upper-right) are significantly upregulated; **blue dots** (upper-left) are downregulated. \n The labeled genes are the most significant. We can see how the "cloud" narrows from V1 to V5, fewer genes are dramatically changed at 6 months, matching the original paper's finding of a gradually resolving but sustained signature.
+Each dot is a gene. The x-axis is the fold change (how much the gene changes in Lyme vs. Control). The y-axis is statistical significance. **Red dots** (upper-right) are significantly upregulated, **blue dots** (upper-left) are downregulated.
+
+The labeled genes are the most significant. We can see how the "cloud" narrows from V1 to V5, fewer genes are dramatically changed at 6 months, matching the original paper's finding of a gradually resolving but sustained signature.
 
 ## 10.6 Genes of Interest — picks for the discussion
 
-From the V1 volcano and DEG table, the genes below have the strongest combination of (a) statistical significance, (b) effect size, and (c) prior literature linking them to *B. burgdorferi* infection or to inflammatory disease in general. We recommend picking 2–3 of these to discuss in detail.
+
 
 ```{r genes-of-interest, fig.width=11, fig.height=6.5}
 genes_of_interest <- c("CXCL10", "S100A8", "S100A9", "FCGR1A",
@@ -1001,9 +994,9 @@ make_volcano_highlight(res_list$V1,
                        genes_of_interest)
 ```
 
-### V2 vs Control — what survives the antibiotic course?
+### V2 vs Control, what survives the antibiotic course?
 
-V2 is sampled three weeks after V1, after the antibiotic course is complete. If the inflammatory programme were a simple acute response we would expect most of the V1 picks to fall back to baseline here. The opposite tends to happen in Lyme — the central finding of the paper — and the volcano below makes that visually obvious.
+V2 is sampled three weeks after V1, after the antibiotic course is complete. If the inflammatory programme were a simple acute response we would expect most of the V1 picks to fall back to baseline here. The opposite tends to happen in Lyme, the central finding of the paper, and the volcano below makes that visually obvious.
 
 ```{r genes-of-interest-v2, fig.width=11, fig.height=6.5}
 goi_v2_df <- res_list$V2 %>%
@@ -1025,9 +1018,9 @@ make_volcano_highlight(res_list$V2,
                        genes_of_interest)
 ```
 
-**How to read the V2 plot.** Compare to V1: most genes of interest should still be in the upper-right but with **smaller** LFCs and slightly larger p-values. CXCL10, S100A8/A9, FCGR1A, ISG15/IFI27/BATF2 typically survive antibiotic clearance because the inflammatory programme is now self-sustained by the autocrine NF-κB / IFN-γ loops described in Section 11.2.1 — the bacterium is gone but the host immune machinery is still running. This is the V2 piece of the "persistent inflammatory signature" story.
 
-### V5 vs Control — does CXCL10 (and the rest of the V1 picks) survive 6 months later?
+
+### V5 vs Control, does CXCL10 (and the rest of the V1 picks) survive 6 months later?
 
 The whole reason CXCL10 is the headline pick is that it is reported to **stay elevated in PTLDS**. That claim is only useful if we can verify it on our own data. Below is the V5 volcano with the **same set of genes of interest highlighted** (so CXCL10, S100A8/A9, TLR2, etc. are bold-labelled if and only if they are still significantly up at V5), plus **labels for every gene that is still significantly upregulated** (`padj < 0.05`, `log2FC > 1`) so we see the full residual signature.
 
@@ -1087,15 +1080,10 @@ make_volcano_v5_persist(res_list$V5,
                         genes_of_interest)
 ```
 
-**How to read this for the discussion:**
-
-- If **CXCL10** appears as a bold red label in the upper-right, our data **directly recapitulates** the PTLDS biomarker finding (Soloski *et al.* 2014, Aucott *et al.* 2016) — CXCL10 is still transcriptionally elevated 6 months after antibiotics, in this cohort, with `padj < 0.05` and `log2FC > 1`. That is a clean, citable claim.
-- If CXCL10 is **not** in the upper-right at V5, you have two equally interesting things to say: (a) at the cohort-mean level the signal has resolved; and (b) the per-patient GSVA boxplots in Section 14.7 are then the right place to look — PTLDS is, in the literature, a **subset** phenomenon, so a small number of V5 outliers can still carry CXCL10 even when the cohort mean has returned to baseline. The `goi_v5_df` table printed above tells you the cohort-level effect (LFC + padj at V5) directly.
-- The **grey labels** show every other gene still significantly up at V5. If those labels are dominated by classic ISGs (e.g. *IFI27*, *RSAD2*, *OAS*, *MX1*) and complement / neutrophil genes, the residual signature at 6 months is still the **same biology** as V1 — just at lower amplitude. That is exactly the "persistent inflammatory signature" finding of the original paper.
 
 ### Cross-time-point summary for the genes of interest
 
-A single table that joins the V1, V2, V5 numbers for every pick — useful for the report and for spotting which genes resolve and which persist.
+A single table that joins the V1, V2, V5 numbers for every pick, useful for the report and for spotting which genes resolve and which persist.
 
 ```{r goi-cross-tp, fig.width=10, fig.height=5}
 goi_long <- dplyr::bind_rows(
@@ -1137,49 +1125,41 @@ ggplot(goi_long,
         legend.text = element_text(size = 8))
 ```
 
-This trajectory plot is the simplest visual answer to "does CXCL10 persist?". Every pick that stays above LFC = 1 (and stays a filled circle) at V5 is a candidate persistence biomarker; every pick that decays below the dashed line by V5 is a marker of acute infection that resolves.
+This trajectory plot is the simplest visual answer to "does CXCL10 persist?". Every pick that stays above LFC = 1 (and stays a filled circle) at V5 is a candidate persistence biomarker, every pick that decays below the dashed line by V5 is a marker of acute infection that resolves.
 
-### Why these genes are interesting
+### genes of interest
 
-**1. CXCL10 (IP-10) — the strongest published Lyme biomarker candidate**
+**1. CXCL10 (IP-10): the strongest published Lyme biomarker candidate**
 
 CXCL10 is an IFN-γ-induced chemokine that recruits activated T cells (Th1) and NK cells to sites of infection. Soloski *et al.* (2014, *PLoS ONE*) showed CXCL10 is significantly elevated in serum of patients with erythema migrans and **stays elevated in patients who develop post-treatment Lyme disease syndrome (PTLDS)**, making it the leading transcriptional/serum biomarker for the persistent signature. Aucott *et al.* (2016) and Strle *et al.* (2014) reach similar conclusions. Our V1 result (large positive LFC, very small padj) directly recapitulates this finding at the transcriptome level.
 
-> **Pick this one** if you want to talk about persistence / PTLDS — it ties V1 directly to V5.
 
-**2. S100A8 / S100A9 (calprotectin / MRP8-MRP14) — neutrophil alarmins**
+**2. S100A8 / S100A9 (calprotectin / MRP8-MRP14): neutrophil alarmins**
 
 S100A8 and S100A9 form the heterodimer **calprotectin**, a damage-associated molecular pattern (DAMP) released by activated neutrophils and monocytes. They directly activate **TLR4** and **RAGE**, amplifying NF-κB-driven inflammation. Calprotectin is established as a serum/synovial biomarker in **Lyme arthritis** (Wang *et al.* 2016, *Clin Vaccine Immunol*) and is elevated in many bacterial infections. Our LFC > 2 with very small padj is consistent with massive neutrophil activation in acute Lyme.
 
-> **Pick these** if you want to talk about innate immunity / neutrophils / DAMPs.
 
-**3. FCGR1A (CD64) — classic monocyte activation marker**
+**3. FCGR1A (CD64): classic monocyte activation marker**
 
 CD64 is the high-affinity Fc-γ receptor on monocytes/macrophages. Its surface expression is one of the most validated clinical sepsis/bacterial-infection markers (Cid *et al.* 2010 meta-analysis). Strong upregulation at V1 confirms a bacterial-infection-like activation profile and matches the original paper's emphasis on macrophage activation.
 
-**4. TLR2 — direct sensor of *Borrelia burgdorferi***
+**4. TLR2: direct sensor of *Borrelia burgdorferi**
 
 TLR2 (with TLR1) recognises the **outer surface lipoproteins (OspA, OspC)** of *B. burgdorferi*. Hirschfeld *et al.* (1999, *J Immunol*) and Wooten *et al.* (2002) established this is the principal innate-immunity entry point for Lyme. Its upregulation at V1 is mechanistically central — it is the molecular receptor for the pathogen.
 
-> **Pick this one** for a *mechanistic* story tying the pathogen directly to the host transcriptome.
 
-**5. IDO1 — immunoregulatory tryptophan metabolism**
+**5. IDO1: immunoregulatory tryptophan metabolism**
 
 IDO1 catalyses tryptophan → kynurenine, depleting tryptophan locally and producing immunosuppressive metabolites. It is induced by IFN-γ and is a candidate driver of T-cell hypofunction in **chronic infections** (Lyme, TB, HCV, HIV). Mellor & Munn (2004, *Nat Rev Immunol*) review this. If your story is "why does the immune signal *persist* after antibiotics?", IDO1 is a strong candidate mechanism.
 
-**6. CD274 (PD-L1) — immune checkpoint / exhaustion**
+**6. CD274 (PD-L1): immune checkpoint / exhaustion**
 
-PD-L1 binds PD-1 on T cells and dampens their response. Persistent PD-L1 expression is a hallmark of **T-cell exhaustion** in chronic viral and bacterial infections (Wherry 2011, *Nat Immunol*). Its elevation at V1 (and persistence at V2 in our results) is consistent with the host beginning to apply a "brake" to the inflammatory response — relevant to the "the signature persists" narrative.
+PD-L1 binds PD-1 on T cells and dampens their response. Persistent PD-L1 expression is a hallmark of **T-cell exhaustion** in chronic viral and bacterial infections (Wherry 2011, *Nat Immunol*). Its elevation at V1 (and persistence at V2 in our results) is consistent with the host beginning to apply a "brake" to the inflammatory response, relevant to the "the signature persists" narrative.
 
-**7. ISG15 / IFI27 / BATF2 — Interferon-stimulated genes (ISGs)**
+**7. ISG15 / IFI27 / BATF2: Interferon-stimulated genes (ISGs)**
 
 These three are core ISGs and routinely sit at the top of Type-I interferon response scores (Mostafavi *et al.* 2016). Their large LFCs at V1 explain why both `HALLMARK_INTERFERON_GAMMA_RESPONSE` and `HALLMARK_INTERFERON_ALPHA_RESPONSE` light up so strongly in ORA/GSEA. Worth mentioning collectively as "the IFN signature".
 
-### Our recommendation for the report / oral discussion
-
-If you have time for **3 genes**: pick **CXCL10** (persistence biomarker), **TLR2** (pathogen-receptor story), and **S100A8/A9** (innate immunity / neutrophils). They cover the three main pillars of the response — direct sensing, innate effector activation, and a persistent biomarker — and all three have strong, citable literature.
-
-If you only have time for **1 gene**: **CXCL10** is the single highest-impact pick because it links V1 → V2 → V5 and connects directly to the paper's central PTLDS narrative.
 
 ## 10.7 DEG Overlap Across Time Points
 
@@ -1311,12 +1291,6 @@ grid.arrange(
 )
 ```
 
-**How to read these three panels.**
-
-- **V1** is dominated by inflammation / TNFA / IFN-γ / Complement / IL6-JAK-STAT3 — the classical acute-infection set. This panel is what Section 11.2.1 dissects in detail.
-- **V2** typically loses some pathways (e.g. complement, IFN-α) and keeps the dominant TNFA / Inflammatory Response / IFN-γ trio — the "persistent" component after antibiotic clearance.
-- **V5** is the most discriminating panel: pathways that *still* appear here are the residual chronic signature; pathways that have dropped off are the ones that resolve fully by 6 months. If V5 has zero enriched Hallmarks, the "no enriched pathways" placeholder is shown — that itself is a valid result and is consistent with mostly-resolved cohort-mean signal.
-
 A cross-time-point heatmap of `-log10(padj)` for every Hallmark significant in at least one timepoint is built below to make the V1 → V2 → V5 dynamics quantitative.
 
 ```{r ora-hallmark-heatmap, fig.height=9, fig.width=7}
@@ -1368,7 +1342,7 @@ Acute *B. burgdorferi* infection activates innate sensors (TLR2, TLR1/6, NOD2). 
 
 #### Key genes in our leading edge (from V1 GSEA)
 
-These are the genes that drove the high enrichment score for this pathway in our data — most are upregulated and are textbook NF-κB targets:
+These are the genes that drove the high enrichment score for this pathway in our data, most are upregulated and are textbook NF-κB targets:
 
 | Gene | Class | What it does |
 |------|-------|--------------|
@@ -1382,7 +1356,7 @@ These are the genes that drove the high enrichment score for this pathway in our
 | **BCL2A1 / BIRC2 / BIRC3** | Anti-apoptotic | Keep activated immune cells alive long enough to fight. |
 | **MYC / EGR1 / FOS / JUN** | Immediate-early TFs | Boost proliferation of activated cells. |
 
-Many of these (CXCL10, IL6, ICAM1) overlap with the **Inflammatory Response** and **IFN-γ Response** Hallmarks below — that overlap is real biology, not redundancy.
+Many of these (CXCL10, IL6, ICAM1) overlap with the **Inflammatory Response** and **IFN-γ Response** Hallmarks below, that overlap is real biology, not redundancy.
 
 #### What are pro-inflammatory cytokines?
 
@@ -1400,9 +1374,9 @@ Many of these (CXCL10, IL6, ICAM1) overlap with the **Inflammatory Response** an
 | **IFN-γ** | T cells (Th1), NK cells | Macrophage activation, antiviral state, MHC-II upregulation |
 | **GM-CSF (CSF2)** | T cells, macrophages | Granulocyte / macrophage proliferation |
 
-Their counterparts — **anti-inflammatory cytokines** — include IL-10, TGF-β, IL-1Ra, and soluble TNF receptors. A healthy response *resolves* by switching from the pro- to the anti-inflammatory programme. The Lyme PTLDS hypothesis is essentially that this resolution is delayed or incomplete: the pro-inflammatory programme (especially TNF/NF-κB and IFN-γ) **stays on** long after the bacteria have been cleared, which is exactly what our V2 and V5 data continue to show.
+Their counterparts, **anti-inflammatory cytokines**, include IL-10, TGF-β, IL-1Ra, and soluble TNF receptors. A healthy response *resolves* by switching from the pro- to the anti-inflammatory programme. The Lyme PTLDS hypothesis is essentially that this resolution is delayed or incomplete: the pro-inflammatory programme (especially TNF/NF-κB and IFN-γ) **stays on** long after the bacteria have been cleared, which is exactly what our V2 and V5 data continue to show.
 
-#### Sources
+#### Sources:
 
 - Liu *et al.*, **NF-κB signaling in inflammation**, *Signal Transduction and Targeted Therapy* (2017).
 - Pasparakis, **Regulation of tissue homeostasis by NF-κB**, *Nat Rev Immunol* (2009).
@@ -1472,13 +1446,13 @@ grid.arrange(
 )
 ```
 
-**How to read these.** The three GO:BP panels track *the same biological themes* the Hallmarks point to (cytokine production, leukocyte activation, response to bacterium, type-I/II interferon response) but at finer resolution. At V1 you see dozens of overlapping cytokine/immune child-terms; at V2 the same themes but fewer; at V5 the surviving terms tend to be the broadest "regulation of immune response" parents — a pattern consistent with the residual signature being a low-amplitude version of the V1 programme rather than a different biology. The full 400+-term lists per visit are in the CSVs for any reviewer who wants to dig into specific child terms.
+The three GO:BP panels track *the same biological themes* the Hallmarks point to (cytokine production, leukocyte activation, response to bacterium, type-I/II interferon response) but at finer resolution. At V1 you see dozens of overlapping cytokine/immune child-terms; at V2 the same themes but fewer; at V5 the surviving terms tend to be the broadest "regulation of immune response" parents, a pattern consistent with the residual signature being a low-amplitude version of the V1 programme rather than a different biology. The full 400+-term lists per visit are in the CSVs for any reviewer who wants to dig into specific child terms.
 
 ## 11.4 ORA narrative summary across time points
 
 The per-timepoint counts and the heatmap above already cover this section's old role (the all-time-point loop was moved up to 11.2 so all downstream sections can rely on `ora_hallmark_all`). Here we just summarise the trajectory in one paragraph for the report:
 
-- **V1** is the broad inflammatory-storm phase — most Hallmarks enriched, large effects.
+- **V1** is the broad inflammatory-storm phase, most Hallmarks enriched, large effects.
 - **V2** *retains* the dominant TNFA / Inflammatory / IFN-γ Hallmarks with somewhat reduced significance — antibiotics cleared the bacterium but the host inflammatory programme is self-sustaining (NF-κB autocrine loop, see 11.2.1).
 - **V5** keeps only the most stubborn subset (typically TNFA, IFN-γ in this cohort). What survives here is a candidate biomarker of chronic / persistent inflammation — and is the pathway-level analogue of the gene-level CXCL10 persistence story in 10.6.
 
@@ -1492,7 +1466,7 @@ The per-timepoint counts and the heatmap above already cover this section's old 
 GSEA is a major improvement over ORA because it uses **all genes ranked
 by fold change**, not just those passing an arbitrary significance
 cutoff. It detects subtle, coordinated changes in pathways that ORA
-misses. The original study did NOT perform GSEA -- this is a novel
+misses. The original study did NOT perform GSEA. This is a novel
 contribution of our re-analysis.
 
 ## 12.1 Build Ranked Gene Lists
@@ -1555,8 +1529,19 @@ for (tp in names(ranked_lists))
 gsea_hallmark_v1 <- gsea_results$V1
 
 gsea_h_df <- as.data.frame(gsea_hallmark_v1)
-cat("Significant (padj<0.05):", sum(gsea_h_df$p.adjust < 0.05),
+cat("V! Significant (padj<0.05):", sum(gsea_h_df$p.adjust < 0.05),
     "of", nrow(gsea_h_df), "pathways\n")
+
+gsea_hallmark_v2 <- gsea_results$V2
+gsea_h_df <- as.data.frame(gsea_hallmark_v2)
+cat("V2 Significant (padj<0.05):", sum(gsea_h_df$p.adjust < 0.05),
+    "of", nrow(gsea_h_df), "pathways\n")
+
+gsea_hallmark_v5 <- gsea_results$V5
+gsea_h_df <- as.data.frame(gsea_hallmark_v5)
+cat("V5 Significant (padj<0.05):", sum(gsea_h_df$p.adjust < 0.05),
+    "of", nrow(gsea_h_df), "pathways\n")
+
 ```
 
 ```{r gsea-dotplots, fig.width=20, fig.height=8}
@@ -1584,11 +1569,11 @@ Each panel splits Hallmark pathways into **activated** (enriched in upregulated 
 
 **Expected biology and what we typically see across visits:**
 
-- **V1 — Activated:** inflammatory response, TNFA-via-NFKB, IFN-γ / IFN-α response, complement, IL6-JAK-STAT3, allograft rejection (immune/MHC-II), apoptosis, G2M / E2F (lymphocyte proliferation). *Suppressed:* oxidative phosphorylation and translation-related sets (eIF2, MYC targets) — the metabolic reprogramming Bouquet *et al.* (2016) reported.
-- **V2 — Activated:** typically the same TNFA-via-NFKB / Inflammatory / IFN-γ trio, with reduced NES — the persistent post-treatment signature.
-- **V5 — Activated:** if anything survives at 6 months, it tends to be TNFA-via-NFKB and IFN-γ alone — the most stubborn part of the persistent signature, and the pathway-level analogue of the gene-level CXCL10 persistence story (Section 10.6).
+- **V1: Activated:** inflammatory response, TNFA-via-NFKB, IFN-γ / IFN-α response, complement, IL6-JAK-STAT3, allograft rejection (immune/MHC-II), apoptosis, G2M / E2F (lymphocyte proliferation). *Suppressed:* oxidative phosphorylation and translation-related sets (eIF2, MYC targets), the metabolic reprogramming Bouquet *et al.* (2016) reported.
+- **V2: Activated:** typically the same TNFA-via-NFKB / Inflammatory / IFN-γ trio, with reduced NES, the persistent post-treatment signature.
+- **V5: Activated:** if anything survives at 6 months, it tends to be TNFA-via-NFKB and IFN-γ alone, the most stubborn part of the persistent signature, and the pathway-level analogue of the gene-level CXCL10 persistence story (Section 10.6).
 
-Pathways that flip from suppressed at V1 to neutral at V5 (e.g. OxPhos rebounding) are evidence that the metabolic reprogramming of immune cells is reversing — the *resolution* side of the story.
+Pathways that flip from suppressed at V1 to neutral at V5 (e.g. OxPhos rebounding) are evidence that the metabolic reprogramming of immune cells is reversing, the *resolution* side of the story.
 
 ## 12.2b GSEA "volcano" — NES vs significance, all Hallmarks at every visit
 
@@ -1626,11 +1611,11 @@ grid.arrange(
 )
 ```
 
-**Reading across panels.** The y-axis shrinks from V1 → V2 → V5: fewer pathways pass `padj < 0.05`, and those that do sit closer to the dashed line. The x-axis usually keeps its sign: pathways that are red (activated) at V1 stay red at V5 if they survive, never flipping to blue. This is the GSEA-level confirmation that the residual V5 signature is a *low-amplitude V1* rather than a different biology.
+The y-axis shrinks from V1 → V2 → V5: fewer pathways pass `padj < 0.05`, and those that do sit closer to the dashed line. The x-axis usually keeps its sign: pathways that are red (activated) at V1 stay red at V5 if they survive, never flipping to blue. This is the GSEA-level confirmation that the residual V5 signature is a *low-amplitude V1* rather than a different biology.
 
 ## 12.2c Validation: ORA ↔ GSEA agreement at every visit
 
-For each visit we plot ORA `-log10(padj)` against GSEA `-log10(padj)` for shared Hallmark IDs. Top-right (red) points are **significant in both methods** — the most robust hits. Pathways significant only in GSEA (left-of-vertical, above-of-horizontal) are GSEA's "subtle coordinated changes" advantage.
+For each visit we plot ORA `-log10(padj)` against GSEA `-log10(padj)` for shared Hallmark IDs. Top-right (red) points are **significant in both methods** the most robust hits. Pathways significant only in GSEA (left-of-vertical, above-of-horizontal) are GSEA's "subtle coordinated changes" advantage.
 
 ```{r ora-gsea-concordance-all, fig.width=18, fig.height=6}
 make_concord <- function(ora_obj, gsea_obj, title) {
@@ -1683,9 +1668,9 @@ for (tp in names(gsea_results)) {
 }
 ```
 
-**Reading.** At V1 you should see a populous top-right cluster — the V1 acute signal is robust to method. At V2 the cluster shrinks but the same canonical pathways survive (TNFA, Inflammatory, IFN-γ). At V5 the cluster is smallest and may even be empty for ORA (because few V5 genes pass `|LFC|>1, padj<0.05`); GSEA-only points above the horizontal but left-of-vertical are then the *subtle persistent* pathways — exactly the case GSEA was designed for.
+At V1 you should see a populous top-right cluster — the V1 acute signal is robust to method. At V2 the cluster shrinks but the same canonical pathways survive (TNFA, Inflammatory, IFN-γ). At V5 the cluster is smallest and may even be empty for ORA (because few V5 genes pass `|LFC|>1, padj<0.05`); GSEA-only points above the horizontal but left-of-vertical are then the *subtle persistent* pathways, exactly the case GSEA was designed for.
 
-## 12.2d Robustness check: GSEA with LFC ranker vs signed −log10(p) ranker — at every visit
+## 12.2d Robustness check: GSEA with LFC ranker vs signed −log10(p) ranker, at every visit
 
 Same robustness test as before, run for each visit. Each panel shows NES from the LFC ranker vs NES from the signed-p ranker; tight diagonal clustering of the "Sig in both" points means the result is not an artefact of how we rank the genes.
 
@@ -1735,11 +1720,11 @@ grid.arrange(
 )
 ```
 
-**Reading.** Pearson correlations near 1 across all three visits mean the GSEA result is genuinely robust to ranker choice at every disease stage — *not* just at V1. If V5 has a noticeably lower correlation it is usually because the V5 signal is small enough that ranker noise matters more (small denominators).
+Pearson correlations near 1 across all three visits mean the GSEA result is genuinely robust to ranker choice at every disease stage, *not* just at V1. If V5 has a noticeably lower correlation it is usually because the V5 signal is small enough that ranker noise matters more (small denominators).
 
 ## 12.3 GSEA Enrichment ("mountain") Plots for Key Pathways — across all visits
 
-For each of the four signature pathways we draw the mountain plot at every visit. The peak height (enrichment score, ES) tracks how strongly the pathway's genes cluster at the top of the ranked list — visually showing the V1 → V2 → V5 *decay* of each pathway in one figure.
+For each of the four signature pathways we draw the mountain plot at every visit. The peak height (enrichment score, ES) tracks how strongly the pathway's genes cluster at the top of the ranked list, visually showing the V1 → V2 → V5 *decay* of each pathway in one figure.
 
 ```{r gsea-mountains, fig.show='hold', out.width='32%', fig.height=6}
 key_pathways <- c("HALLMARK_INFLAMMATORY_RESPONSE",
@@ -1777,7 +1762,7 @@ for (pw in key_pathways) {
 }
 ```
 
-**Reading the mountains.** A high peak on the **left** = pathway genes pile up at the top of the ranked list (activated, in our LFC ranker that means upregulated). The peak typically gets *lower and broader* from V1 → V2 → V5; if the peak goes flat by V5, the pathway has fully resolved; if it stays sharp, the pathway is *persistent* — which is the canonical chronic / PTLDS-relevant biology.
+ A high peak on the left = pathway genes pile up at the top of the ranked list (activated, in our LFC ranker that means upregulated). The peak typically gets lower and broader from V1 → V2 → V5; if the peak goes flat by V5, the pathway has fully resolved; if it stays sharp, the pathway is persistent, which is the canonical chronic / PTLDS-relevant biology.
 
 ## 12.4 GSEA NES heatmap — all Hallmarks across all visits
 
@@ -1818,13 +1803,11 @@ This heatmap is the compact "everything at once" view. **Red** = activated, **bl
 
 *Ref: Thomas's book Ch. 8.4.2*
 
-`compareCluster` from clusterProfiler directly compares enrichment
-results across multiple gene lists (our three time points), making the
-temporal dynamics visually clear.
+`compareCluster` from clusterProfiler directly compares enrichment results across multiple gene lists (our three time points), making the temporal dynamics visually clear.
 
 ### Why V5 was missing in the previous version of this plot
 
-`compareCluster()` with `pvalueCutoff = 0.05` *drops any cluster (visit) that has zero significant terms* from the dotplot, which is why earlier renders showed only V1 and V2 — V5 has fewer DEGs and frequently no Hallmark passes the strict 0.05 cutoff. We diagnose this explicitly below and use two complementary remedies so V5 is always represented:
+`compareCluster()` with `pvalueCutoff = 0.05` *drops any cluster (visit) that has zero significant terms* from the dotplot, which is why earlier renders showed only V1 and V2, V5 has fewer DEGs and frequently no Hallmark passes the strict 0.05 cutoff. We diagnose this explicitly below and use two complementary remedies so V5 is always represented:
 
 1. Print the per-visit input gene-list size and the per-visit number of significant Hallmarks so we can *see* the dropout numerically.
 2. Use a more permissive `pvalueCutoff` (0.2) and rely on **dot transparency / size** (driven by `p.adjust`) to convey significance — this keeps V5 in the figure even when nothing passes 0.05, and makes the V1 → V2 → V5 *amplitude decay* the actual visual story.
@@ -1871,10 +1854,10 @@ if (nrow(cc_df) > 0)
 **How to read the figure (now with V5 included):**
 
 - Each column is a visit; each row is a Hallmark pathway. **Dot size** = number of V-specific DEGs that hit the pathway. **Dot colour** = `p.adjust` (darker = more significant).
-- Pathways with dots in **all three columns** are the **persistent** signature — TNFA-via-NFKB, Inflammatory Response, IFN-γ Response are typical members.
-- Pathways with dots in V1 (and maybe V2) but **missing at V5** are the *acute-only* signature — typical examples are Complement and IL6-JAK-STAT3 in this cohort.
+- Pathways with dots in **all three columns** are the **persistent** signature, TNFA-via-NFKB, Inflammatory Response, IFN-γ Response are typical members.
+- Pathways with dots in V1 (and maybe V2) but **missing at V5** are the *acute-only* signature, typical examples are Complement and IL6-JAK-STAT3 in this cohort.
 - A column that is *very sparse* at V5 (few or no dots) is itself a finding: it directly visualises the cohort-mean resolution of the acute response by 6 months. Combined with the per-patient GSVA boxplots in Section 14.7, this distinguishes the cohort-level resolution from the subset of PTLDS-candidate patients.
-- If you would like a stricter view (only `padj < 0.05` dots), uncomment `pvalueCutoff = 0.05` above — V5 will then drop out as in the earlier version, but the V1/V2 dots that remain will all be unambiguously significant.
+- If you would like a stricter view (only `padj < 0.05` dots), uncomment `pvalueCutoff = 0.05` above, V5 will then drop out as in the earlier version, but the V1/V2 dots that remain will all be unambiguously significant.
 
 
 ---
@@ -2077,7 +2060,7 @@ can produce. Each dot is an individual patient's pathway activity.
 Look for:
 
 - **V1 >> Control**: Pathway is activated during acute infection (expected for immune/inflammatory pathways).
-- **V2 still elevated**: Pathway stays active even after antibiotic treatment -- evidence for the sustained signature.
+- **V2 still elevated**: Pathway stays active even after antibiotic treatment, evidence for the sustained signature.
 - **V5 approaching Control**: Pathway is resolving (good sign for most patients).
 - **V5 patients still elevated**: These outlier dots may correspond to patients with persistent symptoms (PTLDS).
 
@@ -2093,7 +2076,7 @@ bulk comparisons could not show.
 
 *Ref: Khatri et al. 2012 (three generations); Tarca et al. 2009; Thomas's book Ch. 8 — pathway topology*
 
-**What “third generation” means here.** First-generation ORA asks whether a pathway contains more DEG labels than expected. Second-generation GSEA/GSVA uses ranked scores or per-sample enrichment without explicit **wiring** between genes. **Signalling Pathway Impact Analysis (SPIA)** adds a *perturbation* term: it walks curated **KEGG** signalling topology so that genes upstream/downstream and activation vs inhibition relations contribute differently from a flat hypergeometric count. The combined evidence (over-representation **pNDE** + topology **pPERT**) yields a global **pG** (and FDR-style **pGFdr**).
+First-generation ORA asks whether a pathway contains more DEG labels than expected. Second-generation GSEA/GSVA uses ranked scores or per-sample enrichment without explicit *wiring* between genes. **Signalling Pathway Impact Analysis (SPIA)** adds a *perturbation* term: it walks curated **KEGG** signalling topology so that genes upstream/downstream and activation vs inhibition relations contribute differently from a flat hypergeometric count. The combined evidence (over-representation **pNDE** + topology **pPERT**) yields a global **pG** (and FDR-style **pGFdr**).
 
 ### Should we trust SPIA for this course project?
 
@@ -2185,7 +2168,7 @@ grid.arrange(
 )
 ```
 
-**Reading across panels.** Pathways with large **|tA|** (total net accumulation) and small **pPERT** are those where **topology** contributes strongly, not just list overlap. KEGG pathways that stay coloured firebrick at V2/V5 are SPIA's version of the persistent inflammatory signature — typically *Cytokine-cytokine receptor interaction*, *TNF signalling*, *JAK-STAT*, *Toll-like receptor signalling* are the ones that survive longest. KEGG pathways that drop out from V1 to V5 (often *Cell cycle*, *DNA replication*) are the proliferation/expansion programmes that resolve once the acute response ends.
+**Reading across panels.** Pathways with large **|tA|** (total net accumulation) and small **pPERT** are those where **topology** contributes strongly, not just list overlap. KEGG pathways that stay coloured firebrick at V2/V5 are SPIA's version of the persistent inflammatory signature, typically *Cytokine-cytokine receptor interaction*, *TNF signalling*, *JAK-STAT*, *Toll-like receptor signalling* are the ones that survive longest. KEGG pathways that drop out from V1 to V5 (often *Cell cycle*, *DNA replication*) are the proliferation/expansion programmes that resolve once the acute response ends.
 
 ## 15.4 Does SPIA agree with the Hallmark / GO results? (cross-database validation)
 
@@ -2195,11 +2178,11 @@ grid.arrange(
 
 | Database | Source | Granularity | Used by |
 |----------|--------|-------------|---------|
-| **MSigDB Hallmark** | Liberzon *et al.* 2015 — 50 curated, low-redundancy gene sets | broad biological themes (~200 genes / set) | ORA, GSEA, GSVA in Sections 11–14 |
+| **MSigDB Hallmark** | Liberzon *et al.* 2015, 50 curated, low-redundancy gene sets | broad biological themes (~200 genes / set) | ORA, GSEA, GSVA in Sections 11–14 |
 | **GO:BP** | Gene Ontology Consortium | thousands of overlapping terms | ORA in Section 11.3 |
 | **KEGG signalling maps** | Kanehisa Lab | ~330 curated pathways with **edges** (activation/inhibition) | SPIA in this section |
 
-There is overlap *in the underlying biology* (e.g. "Cytokine-cytokine receptor interaction" in KEGG ↔ `HALLMARK_INFLAMMATORY_RESPONSE`) but the gene sets are not identical — KEGG is more mechanistic and signalling-focused, Hallmark is more thematic.
+There is overlap *in the underlying biology* (e.g. "Cytokine-cytokine receptor interaction" in KEGG ↔ `HALLMARK_INFLAMMATORY_RESPONSE`) but the gene sets are not identical, KEGG is more mechanistic and signalling-focused, Hallmark is more thematic.
 
 ### Strategy
 
@@ -2251,7 +2234,7 @@ for (tp in names(res_list)) {
 
 ### 15.4.3 Map SPIA → MSigDB-KEGG and merge — for each visit
 
-SPIA exposes the human-readable pathway name (e.g. `"Cytokine-cytokine receptor interaction"`); MSigDB exposes the upper-snake-case `gs_name` (e.g. `"KEGG_CYTOKINE_CYTOKINE_RECEPTOR_INTERACTION"`). We normalise both, join, and produce a per-visit `cross_kegg_<tp>` table.
+SPIA exposes the human-readable pathway name (e.g. `"Cytokine-cytokine receptor interaction"`), MSigDB exposes the upper-snake-case `gs_name` (e.g. `"KEGG_CYTOKINE_CYTOKINE_RECEPTOR_INTERACTION"`). We normalise both, join, and produce a per-visit `cross_kegg_<tp>` table.
 
 ```{r spia-kegg-mapping-all}
 norm_kegg_name <- function(s) {
@@ -2369,11 +2352,11 @@ grid.arrange(
 )
 ```
 
-**Reading.** A populated top-right corner at V1 means SPIA and KEGG-GSEA agree on the same database — the V1 inflammatory signal is robust to method, not just topology-induced. The cluster shrinks at V2 and may be empty at V5; if V5 has no SPIA-significant pathways at all (red colour absent in the per-visit dotplot above), the panel will show only grey points — itself a finding (cohort-mean KEGG signal has resolved).
+A populated top-right corner at V1 means SPIA and KEGG-GSEA agree on the same database the V1 inflammatory signal is robust to method, not just topology-induced. 
 
-### 15.4.5 Bridge back to Hallmark — *gene-level* agreement at every visit
+### 15.4.5 Bridge back to Hallmark, *gene-level* agreement at every visit
 
-For each visit, intersect the **leading-edge genes** of the top-5 Hallmark GSEA hits with the **member genes** of the top-5 SPIA KEGG pathways. High counts in red cells mean Hallmark and KEGG are describing the same gene populations.
+For each visit intersect the **leading-edge genes** of the top-5 Hallmark GSEA hits with the **member genes** of the top-5 SPIA KEGG pathways. High counts in red cells mean Hallmark and KEGG are describing the same gene populations.
 
 ```{r spia-hallmark-gene-overlap-all, fig.width=20, fig.height=5}
 hallmark_members_long <- msigdb_hallmark %>%
@@ -2435,7 +2418,7 @@ grid.arrange(
 )
 ```
 
-**Reading.** Strong red diagonals at V1 and V2 confirm that Hallmark and KEGG are describing the same biology at those time points (just in different vocabulary). At V5 the heatmap may be blank or pale — if either Hallmark GSEA or SPIA produces no top-5 hits at V5, that absence itself answers the question: there is no robust pathway-level signal at 6 months in this cohort, only a residual subset of patients (visible in 14.7).
+Strong red diagonals at V1 and V2 confirm that Hallmark and KEGG are describing the same biology at those time points (just in different vocabulary). At V5 the heatmap may be blank or pale, if either Hallmark GSEA or SPIA produces no top-5 hits at V5, that absence itself answers the question: there is no robust pathway-level signal at 6 months in this cohort, only a residual subset of patients (visible in 14.7).
 
 ### 15.4.6 Save the cross-database tables — for every visit
 
@@ -2456,7 +2439,7 @@ for (tp in names(cross_kegg_list)) {
 ---
 ---
 
-# 16. Save All Results
+Save All Results
 
 ```{r save-all-results}
 for (tp in names(ora_hallmark_all)) {
@@ -2491,11 +2474,11 @@ cat("All results saved to:", results_dir, "\n")
 ---
 ---
 
-# 17. Results Interpretation & Discussion
+# 16. Results Interpretation & Discussion
 
 This section brings together all findings into a coherent narrative.
 
-## 17.1 What did we find? (The Big Picture)
+## 16.1 What did we find? (The Big Picture)
 
 ```{r interpretation-summary}
 cat("DATA\n","  Genome reference: GRCh38.p13 (upgraded from hg19)\n"
@@ -2526,51 +2509,51 @@ if (!is.null(spia_v1) && nrow(spia_v1) > 0) {
 }
 ```
 
-## 17.2 Biological Interpretation
+## 16.2 Biological Interpretation
 
 ### The Acute Phase (V1): A Strong Inflammatory Storm
 
-At V1 (acute Lyme diagnosis, before antibiotics) we detect the largest number of DEGs and the most enriched pathways. ORA, GSEA and GSVA all converge on the same five Hallmark pathways at the top — and the cross-method validation in **Section 12.2c** confirms they are not method-specific artefacts. The dominant biological themes are:
+At V1 (acute Lyme diagnosis, before antibiotics) we detect the largest number of DEGs and the most enriched pathways. ORA, GSEA and GSVA all converge on the same five Hallmark pathways at the top , and the cross-method validation in **Section 12.2c** confirms they are not method-specific artefacts. The dominant biological themes are:
 
-- **TNFA signaling via NF-κB** — *master pro-inflammatory programme*. The full mechanism (TNF-α → TNFR1 → IKK → NF-κB → autocrine cytokine loop), the leading-edge gene table, and the cytokine glossary are detailed in **Section 11.2.1**. Original paper also called out TNF-α as a top upstream regulator.
-- **Interferon-γ response** — IFN-γ from T cells and NK cells activates macrophages and drives Th1 immunity (the lineage required against spirochetal pathogens). Matches the original study's TREM1-mediated Th1 activation finding. The core ISGs *ISG15 / IFI27 / BATF2* (highlighted in **Section 10.6**) explain why this Hallmark scores so high.
-- **Inflammatory response** — broad cytokine, chemokine, and leukocyte-recruitment programme; expected hallmark of an acute bacterial infection.
-- **Complement** — ancient innate defence that lyses bacteria and tags them for phagocytosis. *SERPING1* (a complement regulator highlighted in 10.6) sits in the leading edge.
-- **IL6–JAK–STAT3 signaling** — IL-6 drives the acute-phase response (CRP, fever); identified as a top upstream regulator at V1 and V2 in the original paper.
+- **TNFA signaling via NF-κB** , *master pro-inflammatory programme*. The full mechanism (TNF-α → TNFR1 → IKK → NF-κB → autocrine cytokine loop), the leading-edge gene table, and the cytokine glossary are detailed in **Section 11.2.1**. Original paper also called out TNF-α as a top upstream regulator.
+- **Interferon-γ response** , IFN-γ from T cells and NK cells activates macrophages and drives Th1 immunity (the lineage required against spirochetal pathogens). Matches the original study's TREM1-mediated Th1 activation finding. The core ISGs *ISG15 / IFI27 / BATF2* (highlighted in **Section 10.6**) explain why this Hallmark scores so high.
+- **Inflammatory response** , broad cytokine, chemokine, and leukocyte-recruitment programme; expected hallmark of an acute bacterial infection.
+- **Complement** , ancient innate defence that lyses bacteria and tags them for phagocytosis. *SERPING1* (a complement regulator highlighted in 10.6) sits in the leading edge.
+- **IL6–JAK–STAT3 signaling** , IL-6 drives the acute-phase response (CRP, fever); identified as a top upstream regulator at V1 and V2 in the original paper.
 
 The gene-level story (**Section 10.6**) maps cleanly onto these pathway-level themes:
 
-- **Pathogen sensing.** *TLR2* (Section 10.6, pick #4) is the direct *B. burgdorferi* lipoprotein receptor — the molecular entry point that lights up the entire downstream NF-κB / IFN-γ programme described above.
+- **Pathogen sensing.** *TLR2* (Section 10.6, pick #4) is the direct *B. burgdorferi* lipoprotein receptor , the molecular entry point that lights up the entire downstream NF-κB / IFN-γ programme described above.
 - **Innate effector activation.** *S100A8 / S100A9* (calprotectin, pick #2) and *FCGR1A* (CD64, pick #3) reflect massive neutrophil + monocyte activation, which is what the *Inflammatory Response* and *Complement* Hallmarks summarise at the gene-set level.
 - **Persistent biomarker.** *CXCL10* (pick #1) is the single most cited Lyme/PTLDS biomarker; its strong V1 induction is the gene-level driver of *Interferon-γ Response* and *IL6-JAK-STAT3*, and it carries forward into V2/V5 (see below).
-- **Resolution / exhaustion machinery already engaged.** *IDO1* (pick #5) and *CD274 / PD-L1* (pick #6) are induced even at V1, hinting that the host is already activating immunoregulatory brakes — relevant for why the signature later fails to fully resolve.
+- **Resolution / exhaustion machinery already engaged.** *IDO1* (pick #5) and *CD274 / PD-L1* (pick #6) are induced even at V1, hinting that the host is already activating immunoregulatory brakes , relevant for why the signature later fails to fully resolve.
 
 **SPIA (Section 15)** adds the topology-aware view: pathways where both list enrichment *and* signed graph perturbation suggest activation/inhibition (e.g. chemokine signalling, lysosome, cell-cycle KEGG maps). Treat as complementary to Hallmark/GO, not a one-to-one match.
 
 ### Post-Treatment (V2): The Signature Persists
 
-At V2 (3 weeks later, after completing antibiotics) a substantial number of DEGs and Hallmark pathways remain active — the paper's central finding: **the gene-expression signature does not promptly return to baseline after treatment**, unlike most other acute infections.
+At V2 (3 weeks later, after completing antibiotics) a substantial number of DEGs and Hallmark pathways remain active , the paper's central finding: **the gene-expression signature does not promptly return to baseline after treatment**, unlike most other acute infections.
 
-The NES heatmap (**Section 12.4**) and GSVA boxplots (**Section 14.7**) show that most inflammatory Hallmarks (TNFA-via-NFKB, Inflammatory Response, IFN-γ Response — see 11.2.1 and 10.6 for what those *mean*) stay elevated at V2 with reduced but non-zero intensity. The mechanism implied by the genes in 10.6 is consistent with this: even after the bacterium is cleared, the *NF-κB feedback loop* documented in 11.2.1 has run for weeks, induced its own self-sustaining cytokine pool (IL-6, IL-1, TNF), and only relaxes slowly. The IDO1 / PD-L1 brakes seen at V1 are now actively trying to dampen the response, but incompletely.
+The NES heatmap (**Section 12.4**) and GSVA boxplots (**Section 14.7**) show that most inflammatory Hallmarks (TNFA-via-NFKB, Inflammatory Response, IFN-γ Response , see 11.2.1 and 10.6 for what those *mean*) stay elevated at V2 with reduced but non-zero intensity. The mechanism implied by the genes in 10.6 is consistent with this: even after the bacterium is cleared, the *NF-κB feedback loop* documented in 11.2.1 has run for weeks, induced its own self-sustaining cytokine pool (IL-6, IL-1, TNF), and only relaxes slowly. The IDO1 / PD-L1 brakes seen at V1 are now actively trying to dampen the response, but incompletely.
 
 ### Six Months Later (V5): Partial but Incomplete Recovery
 
-By V5 (6 months post-treatment) the number of DEGs drops substantially but does not reach zero, and a residual subset of inflammatory pathways still register as differentially active. The **per-sample GSVA boxplots** (Section 14.7) are the most informative view here: most V5 patients approach control levels, but **a minority of outlier samples remain elevated** — these are the candidate PTLDS cases.
+By V5 (6 months post-treatment) the number of DEGs drops substantially but does not reach zero, and a residual subset of inflammatory pathways still register as differentially active. The **per-sample GSVA boxplots** (Section 14.7) are the most informative view here: most V5 patients approach control levels, but **a minority of outlier samples remain elevated** , these are the candidate PTLDS cases.
 
-The original paper found 686 DEGs at V5 and noted 31–60% pathway overlap with chronic autoimmune diseases (SLE, RA). Our re-analysis is consistent with that: a lingering transcriptomic perturbation at 6 months, driven by the same TNF-α/NF-κB and IFN-γ programmes from V1 (see 11.2.1) — just at lower intensity and now restricted to a subset of patients.
+The original paper found 686 DEGs at V5 and noted 31–60% pathway overlap with chronic autoimmune diseases (SLE, RA). Our re-analysis is consistent with that: a lingering transcriptomic perturbation at 6 months, driven by the same TNF-α/NF-κB and IFN-γ programmes from V1 (see 11.2.1) , just at lower intensity and now restricted to a subset of patients.
 
 If we wanted *one gene to track* across V1 → V2 → V5 in a future serum-based clinical follow-up, **CXCL10 (pick #1 in Section 10.6)** is the strongest candidate, with prior independent validation as a PTLDS biomarker (Soloski et al. 2014, Aucott et al. 2016).
 
 ## 17.3 Answering Open Questions from the Analysis
 
-**Section 5.2 -- "Is the mean set correctly for the mean-variance plot?"**
+**Section 5.2, "Is the mean set correctly for the mean-variance plot?"**
 Yes. The plot correctly shows that for raw RNA-Seq counts, the variance
 consistently exceeds the mean (overdispersion). The red Poisson line
 (variance = mean) is a theoretical baseline. The fact that points sit
 above it is not an error; it is the fundamental property of count data
 that justifies using the negative binomial model in DESeq2.
 
-**Section 7.4 -- "VST doesn't seem to flatten the mean-SD relationship?"**
+**Section 7.4, "VST doesn't seem to flatten the mean-SD relationship?"**
 The VST does reduce the dependency, even if visually the "before" and
 "after" plots look similar. The key metric is the correlation between
 mean and SD: even a modest reduction (e.g., from 0.8 to 0.5) meaningfully
@@ -2579,10 +2562,10 @@ doesn't drop to zero is normal -- VST is an approximation, not magic.
 For small sample sizes, `rlog()` (regularised log) can perform better
 than VST but is much slower. Both are acceptable for this project.
 
-**MA plots (Sections 5.3, 7.3, 10.1b) — do they validate normalization?**  
+**MA plots (Sections 5.3, 7.3, 10.1b) , do they validate normalization?**  
 Section 5.3 uses raw log2 counts: systematic offset is expected. Section 7.3 uses **size-factor–normalized** counts only; the loess trend should sit closer to **M = 0**. Section **10.1b** uses **DESeq2**'s `plotMA()` after dispersion shrinkage: the central mass of points at moderate-to-high expression should lie near **LFC = 0** for non-DEGs (blue = padj &lt; alpha). Together, these three plots answer "did we fix depth?" vs "what does the fitted model say about differential expression?"
 
-**Section 12.2 -- "Which pathways should we expect activated/suppressed?"**
+**Section 12.2, "Which pathways should we expect activated/suppressed?"**
 Based on what we know about Lyme disease biology:
 
 *Expected activated:* Inflammatory response, TNF-alpha signaling,
@@ -2622,8 +2605,7 @@ resources from growth to defence.
 
 ---
 
-# Session Info
 
-```{r session-info}
+```{r session-info, include=F}
 sessionInfo()
 ```
