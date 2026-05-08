@@ -1143,7 +1143,7 @@ S100A8 and S100A9 form the heterodimer **calprotectin**, a damage-associated mol
 
 CD64 is the high-affinity Fc-γ receptor on monocytes/macrophages. Its surface expression is one of the most validated clinical sepsis/bacterial-infection markers (Cid *et al.* 2010 meta-analysis). Strong upregulation at V1 confirms a bacterial-infection-like activation profile and matches the original paper's emphasis on macrophage activation.
 
-**4. TLR2: direct sensor of *Borrelia burgdorferi**
+**4. TLR2: direct sensor of Borrelia burgdorferi**
 
 TLR2 (with TLR1) recognises the **outer surface lipoproteins (OspA, OspC)** of *B. burgdorferi*. Hirschfeld *et al.* (1999, *J Immunol*) and Wooten *et al.* (2002) established this is the principal innate-immunity entry point for Lyme. Its upregulation at V1 is mechanistically central — it is the molecular receptor for the pathogen.
 
@@ -2420,9 +2420,9 @@ grid.arrange(
 
 Strong red diagonals at V1 and V2 confirm that Hallmark and KEGG are describing the same biology at those time points (just in different vocabulary). At V5 the heatmap may be blank or pale, if either Hallmark GSEA or SPIA produces no top-5 hits at V5, that absence itself answers the question: there is no robust pathway-level signal at 6 months in this cohort, only a residual subset of patients (visible in 14.7).
 
-### 15.4.6 Save the cross-database tables — for every visit
+Saving the cross-database tables, for every visit
 
-```{r save-spia-cross-all}
+```{r save-spia-cross-all, include=FALSE}
 for (tp in names(cross_kegg_list)) {
   ck <- cross_kegg_list[[tp]]
   if (is.null(ck)) next
@@ -2439,9 +2439,8 @@ for (tp in names(cross_kegg_list)) {
 ---
 ---
 
-Save All Results
 
-```{r save-all-results}
+```{r save-all-results, include=FALSE}
 for (tp in names(ora_hallmark_all)) {
   df <- as.data.frame(ora_hallmark_all[[tp]])
   if (nrow(df) > 0) write.csv(df, file.path(results_dir,
@@ -2578,30 +2577,6 @@ results, look for pathways with negative NES (blue in the heatmap).
 Suppressed MYC targets or mTORC1 signaling would indicate reduced
 cell growth/proliferation, consistent with immune cells diverting
 resources from growth to defence.
-
-## 17.4 Book Chapter Reference Map
-
-| Our Section | Thomas's Book Chapter | Method |
-|-------------|-----------------------|--------|
-| 4.1 Library sizes | Ch. 7.2 | Quality Control / depth imbalance check |
-| 4.3 RLE plot | Ch. 7.2.4 | Relative Log Expression |
-| 5.3 MA plot | Ch. 7.2.7 | Mean-difference plot |
-| 7.2 Size factors | Ch. 7.6 | Median-of-ratios normalisation (handles depth imbalance from 4.1) |
-| 7. DESeq2 | Ch. 7.6 | Differential expression |
-| 8. PCA | Ch. 7.2.2 | Dimensionality reduction |
-| 9. Distance heatmap | Ch. 7.2.1 | Sample distance |
-| 10.1a Dispersion | Ch. 7.6 | Quantifies dataset variability |
-| 10.1b / 7.3 / 5.3 MA | Ch. 7.2.7 | Mean–difference / DESeq2 MA |
-| 10.6 Genes of interest | n/a | Literature-curated picks for discussion |
-| 11. ORA | Ch. 8.1.1, 8.4.1 | 1st generation pathway analysis |
-| 11.2.1 TNFA-via-NFKB | Ch. 8.2 | Detailed pathway explanation |
-| 12. GSEA | Ch. 8.1.2.1, 8.4.3 | 2nd generation pathway analysis |
-| 12.2b GSEA volcano | Ch. 8.4.3 | Pathway-level volcano (NES vs adj.p) |
-| 12.2c ORA ↔ GSEA | Ch. 8 | Cross-method validation |
-| 13. compareCluster | Ch. 8.4.2 | Biologic theme comparison |
-| 14. GSVA | Ch. 8.1.2.2, 8.4.5 | 2nd generation (per-sample scores) |
-| 15. SPIA | Ch. 8 (topology); Khatri et al. 2012 | 3rd generation (KEGG perturbation) |
-| MSigDB usage | Ch. 8.2 | Molecular Signature Database |
 
 ---
 
