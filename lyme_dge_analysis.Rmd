@@ -1,7 +1,7 @@
 ---
 title: "Lyme Disease Differential Gene Expression Re-Analysis"
 subtitle: "Re-analysis of Bouquet et al. 2016 (GSE63085) using DESeq2 & clusterProfiler"
-author: "Abed & Laszlo"
+author: "Midani"
 date: "`r Sys.Date()`"
 output:
   html_document:
@@ -164,7 +164,7 @@ cat("Counts matrix:", nrow(counts_raw), "genes x", ncol(counts_raw), "samples\n"
 This maps NCBI Entrez Gene IDs to gene symbols, biotypes, chromosomal locations, and GO terms.
 
 NCBI Entrez as the "Google Search" engine for biological data. It’s a massive integrated system managed by the National Center for Biotechnology Information (NCBI) that links together different databases, DNA sequences, protein structures, and medical literature (PubMed).
-According to online sources, when we see an Entrez ID (like those numbers in your matrix), it’s a unique "social security number" for a gene. Names (Symbols) change as scientists argue, but Entrez IDs stay the same.
+When we see an Entrez ID (like those numbers in your matrix), it’s a unique "social security number" for a gene. Names (Symbols) change as scientists argue, but Entrez IDs stay the same.
 
 ```{r load-gene-annot}
 gene_annot <- read.delim(
@@ -173,7 +173,7 @@ gene_annot <- read.delim(
 )
 cat("Gene annotation:", nrow(gene_annot), "x", ncol(gene_annot), "\n")
 ```
-> Explanation of the columns (source: online):
+> Explanation of the columns:
 
 * **GeneID**: This matches the row names in your counts matrix. It’s your primary key.
 
@@ -299,7 +299,7 @@ ggplot(biotype_counts %>% dplyr::filter(n > 50),
 ```
 
 About half the genes are **protein-coding** (~49%).
-The rest are non-coding RNA, pseudogenes, etc. According to online sources, protein-coding genes carry the strongest biological signal for differential expression. \n 
+The rest are non-coding RNA, pseudogenes, etc. Protein-coding genes carry the strongest biological signal for differential expression. \n 
 After filtering (Section 6), the protein-coding proportion will increase because non-coding genes tend to have very low counts.
 
 ---
@@ -467,7 +467,7 @@ ggplot(gene_stats, aes(x = log10(mean_count + 1), y = log10(var_count + 1))) +
        x = "log10(Mean + 1)", y = "log10(Variance + 1)")
 ```
 
-Nearly all genes sit above the red line, meaning variance > mean **if my mean is set correctly**. According to online sources: this overdispersion is exactly why DESeq2 uses a negative binomial model instead of a simpler Poisson model. A Poisson
+Nearly all genes sit above the red line, meaning variance > mean **if my mean is set correctly**. This overdispersion is exactly why DESeq2 uses a negative binomial model instead of a simpler Poisson model. A Poisson
 model would dramatically underestimate variability and produce too many false positives.
 
 ## 5.3 MA Plot (pre-normalisation)
